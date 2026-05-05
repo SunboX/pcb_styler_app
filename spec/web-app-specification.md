@@ -27,6 +27,7 @@ Build a local-first browser tool that opens KiCad PCB files and renders a clean 
 14. The UI shows active file name, footprint count, pad count, outline presence, and status, with file metadata placed below the layer controls in the left sidebar.
 15. The UI provides an integrated imprint footer with responsible-party address, contact email, app version, GitHub, and Mastodon links.
 16. In browsers that support the early WebMCP API, the app registers structured tools for reading PCB Styler state, changing side and layer styles, managing highlights and badges, and retrieving the current SVG or transparent PNG without requiring DOM actuation.
+17. Shared-hosting deployment publishes an Apache-ready static frontend artifact with versioned browser module URLs, no-store cache headers, and a PHP metadata fallback.
 
 ## 3. Non-Functional Requirements
 
@@ -46,6 +47,8 @@ Build a local-first browser tool that opens KiCad PCB files and renders a clean 
 5. `src/integrations/WebMcpBridge.mjs`: early WebMCP tool registration and lifecycle management.
 6. `src/AppController.mjs`: state orchestration and user action flow.
 7. `src/server.mjs`: local static/API server.
+8. `src/StaticDeployBuilder.mjs` and `scripts/build-static-deploy.mjs`: static FTP deployment artifact builder.
+9. `api/app-meta.php`: shared-hosting metadata endpoint for deployed app version.
 
 ## 5. Security / Privacy
 
@@ -70,4 +73,5 @@ Build a local-first browser tool that opens KiCad PCB files and renders a clean 
 10. Adding badges starts with label `1`, subsequent badges count upward, badge text is editable, badges can be rotated and dragged in the PCB view, longer badge text renders as a rounded pill, badge text/border color, scale, and drop shadow can be changed, and exported SVG/PNG include the configured badge appearance.
 11. The footer shows the imprint contact information and runtime version as part of the app chrome, and the top bar does not show a separate version badge.
 12. When `navigator.modelContext.registerTool` is present, the app registers early WebMCP tools; when it is absent, startup continues without errors.
-13. `npm test` passes.
+13. `npm run build:static` writes `.deploy-src/` with versioned frontend assets for the FTP workflow.
+14. `npm test` passes.

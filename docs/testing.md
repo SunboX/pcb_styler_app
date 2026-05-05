@@ -11,6 +11,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
   covered in the sibling `@sunbox/kicad-toolkit` test suite.
 - Unit-test controller action flow with fake view, loader, renderer, highlights, and badge dependencies.
 - Unit-test early WebMCP tool registration and controller action calls without requiring a WebMCP-enabled browser.
+- Unit-test static deployment artifacts, FTP workflow shape, and PHP metadata fallback behavior.
 - Validate project structure and source file length guardrails.
 
 ## Commands
@@ -23,6 +24,9 @@ npm test
 
 - `tests/app-controller.test.mjs`: load, side switch, highlight, badge, export, and project import orchestration.
 - `tests/app-state.test.mjs`: state update, highlight semantics, badge normalization, and badge style normalization.
+- `tests/deploy-ftp-workflow.test.mjs`: GitHub Actions FTP target coverage.
+- `tests/php-app-meta-endpoint.test.mjs`: PHP deployment metadata endpoint behavior.
+- `tests/static-deploy-builder.test.mjs`: Apache/shared-hosting artifact cache-busting coverage.
 - `tests/webmcp-bridge.test.mjs`: WebMCP tool registration, schema presence, execution routing, and no-op behavior without API support.
 - `tests/project-structure.test.mjs`: required file presence.
 - `tests/mjs-line-limit.test.mjs`: source file length guard.

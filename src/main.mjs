@@ -6,6 +6,8 @@ import { AppState } from './core/AppState.mjs'
 import { WebMcpBridge } from './integrations/WebMcpBridge.mjs'
 import { AppView } from './ui/AppView.mjs'
 
+const versionEndpointPaths = ['/api/app-meta', '/api/app-meta.php']
+
 /**
  * App bootstrap.
  */
@@ -21,21 +23,38 @@ async function bootstrap() {
 }
 
 /**
- * Loads the app version and updates the header.
+ * Loads the app version and updates visible version nodes.
  * @param {import('./ui/AppView.mjs').AppView} view
+ * @returns {Promise<void>}
  */
 async function loadVersion(view) {
-    try {
-        const response = await fetch('/api/app-meta', { cache: 'no-store' })
-        if (!response.ok) {
-            view.setVersion('')
+    for (const endpointPath of versionEndpointPaths) {
+        const version = await fetchVersion(endpointPath)
+        if (version) {
+            view.setVersion(version)
             return
+        }
+    }
+
+    view.setVersion('')
+}
+
+/**
+ * Fetches app metadata from one endpoint.
+ * @param {string} endpointPath
+ * @returns {Promise<string>}
+ */
+async function fetchVersion(endpointPath) {
+    try {
+        const response = await fetch(endpointPath, { cache: 'no-store' })
+        if (!response.ok) {
+            return ''
         }
 
         const payload = await response.json()
-        view.setVersion(String(payload.version || '').trim())
+        return String(payload.version || '').trim()
     } catch (_error) {
-        view.setVersion('')
+        return ''
     }
 }
 

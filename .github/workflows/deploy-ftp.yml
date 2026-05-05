@@ -1,0 +1,283 @@
+name: Deploy to FTP (main)
+
+on:
+    push:
+        branches: ['main']
+
+concurrency:
+    group: ftp-deploy-main
+    cancel-in-progress: true
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - uses: dorny/paths-filter@v3
+              id: changes
+              with:
+                  filters: |
+                      deps:
+                        - 'package.json'
+                        - 'package-lock.json'
+                      src:
+                        - 'src/**'
+                        - 'scripts/**'
+                      api:
+                        - 'api/**'
+                      docs:
+                        - 'docs/**'
+
+            - uses: actions/setup-node@v4
+              if: steps.changes.outputs.src == 'true' || steps.changes.outputs.deps == 'true'
+              with:
+                  node-version: 20
+                  cache: npm
+
+            - name: Build static frontend deployment
+              if: steps.changes.outputs.src == 'true' || steps.changes.outputs.deps == 'true'
+              run: npm run build:static
+
+            - name: Deploy static frontend to ./
+              id: deploy_src
+              if: steps.changes.outputs.src == 'true' || steps.changes.outputs.deps == 'true'
+              continue-on-error: true
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./.deploy-src/
+                  server-dir: ./
+                  timeout: 60000
+                  exclude: |
+                      **/node_modules/**
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-src-state.json
+
+            - name: Retry deploy static frontend to ./
+              id: deploy_src_retry
+              if: steps.deploy_src.outcome == 'failure'
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./.deploy-src/
+                  server-dir: ./
+                  timeout: 60000
+                  exclude: |
+                      **/node_modules/**
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-src-state.json
+
+            - name: Ensure src deploy succeeded
+              if: steps.deploy_src.outcome == 'failure' && steps.deploy_src_retry.outcome == 'failure'
+              run: exit 1
+
+            - name: Deploy api to ./api/
+              id: deploy_api
+              if: steps.changes.outputs.api == 'true'
+              continue-on-error: true
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./api/
+                  server-dir: ./api/
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.htaccess
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-api-state.json
+
+            - name: Retry deploy api to ./api/
+              id: deploy_api_retry
+              if: steps.deploy_api.outcome == 'failure'
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./api/
+                  server-dir: ./api/
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.htaccess
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-api-state.json
+
+            - name: Ensure api deploy succeeded
+              if: steps.deploy_api.outcome == 'failure' && steps.deploy_api_retry.outcome == 'failure'
+              run: exit 1
+
+            - name: Stage package manifest for LIVE
+              if: steps.changes.outputs.deps == 'true'
+              run: |
+                  rm -rf .deploy-root
+                  mkdir -p .deploy-root
+                  cp package.json .deploy-root/package.json
+
+            - name: Deploy package manifest to ./
+              id: deploy_package_manifest
+              if: steps.changes.outputs.deps == 'true'
+              continue-on-error: true
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./.deploy-root/
+                  server-dir: ./
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-root-meta-state.json
+
+            - name: Retry deploy package manifest to ./
+              id: deploy_package_manifest_retry
+              if: steps.deploy_package_manifest.outcome == 'failure'
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./.deploy-root/
+                  server-dir: ./
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-root-meta-state.json
+
+            - name: Ensure package manifest deploy succeeded
+              if: steps.deploy_package_manifest.outcome == 'failure' && steps.deploy_package_manifest_retry.outcome == 'failure'
+              run: exit 1
+
+            - name: Deploy docs to ./docs/
+              id: deploy_docs
+              if: steps.changes.outputs.docs == 'true'
+              continue-on-error: true
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./docs/
+                  server-dir: ./docs/
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-docs-state.json
+
+            - name: Retry deploy docs to ./docs/
+              id: deploy_docs_retry
+              if: steps.deploy_docs.outcome == 'failure'
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./docs/
+                  server-dir: ./docs/
+                  timeout: 60000
+                  exclude: |
+                      **/.DS_Store
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-docs-state.json
+
+            - name: Ensure docs deploy succeeded
+              if: steps.deploy_docs.outcome == 'failure' && steps.deploy_docs_retry.outcome == 'failure'
+              run: exit 1
+
+            - name: Install production dependencies
+              if: steps.changes.outputs.deps == 'true'
+              run: npm ci --omit=dev
+
+            - name: Deploy node_modules to ./node_modules/
+              id: deploy_node_modules
+              if: steps.changes.outputs.deps == 'true'
+              continue-on-error: true
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./node_modules/
+                  server-dir: ./node_modules/
+                  timeout: 60000
+                  exclude: |
+                      **/.git*
+                      **/.github/**
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-nm-state.json
+
+            - name: Retry deploy node_modules to ./node_modules/
+              id: deploy_node_modules_retry
+              if: steps.deploy_node_modules.outcome == 'failure'
+              uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  protocol: ftp
+                  local-dir: ./node_modules/
+                  server-dir: ./node_modules/
+                  timeout: 60000
+                  exclude: |
+                      **/.git*
+                      **/.github/**
+                      **/.env
+                      **/.env.*
+                      **/*.env
+                      **/*.env.*
+                  state-name: .ftp-deploy-nm-state.json
+
+            - name: Ensure node_modules deploy succeeded
+              if: steps.deploy_node_modules.outcome == 'failure' && steps.deploy_node_modules_retry.outcome == 'failure'
+              run: exit 1

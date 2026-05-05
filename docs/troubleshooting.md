@@ -35,6 +35,13 @@ PNG export uses the current SVG viewBox. If the KiCad file has missing or unusua
 - Confirm the archive also contains the referenced `.kicad_pcb` file.
 - Opening a normal KiCad project ZIP still loads the board but has no PCB Styler settings to restore.
 
+## LIVE Works Locally But Not After Deployment
+
+- Run `npm run build:static` and verify `.deploy-src/index.html` contains `/main.mjs?v=<package version>`.
+- Confirm the FTP workflow uploaded `.deploy-src/` to the LIVE document root instead of raw `src/`.
+- Confirm production `node_modules/` was uploaded after dependency changes so `/node_modules/@sunbox/kicad-toolkit/` and `/node_modules/fflate/` resolve.
+- Confirm `api/app-meta.php` and root `package.json` are deployed if the footer version is blank.
+
 ## Tests Fail After Refactor
 
 - Ensure moved files are reflected in test imports.

@@ -16,6 +16,10 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 - `src/ui/BadgeControls.mjs`: badge list, style controls, and SVG drag handling.
 - `src/ui/AppView.mjs`: DOM binding, status updates, and SVG/PNG/project ZIP downloads.
 - `src/server.mjs`: local static server, dependency serving, and metadata endpoints.
+- `src/ServerAssetVersioner.mjs`: static asset URL rewriting for deploy artifacts.
+- `src/StaticDeployBuilder.mjs`: Apache/shared-hosting artifact builder.
+- `scripts/build-static-deploy.mjs`: CLI wrapper that writes `.deploy-src/`.
+- `api/app-meta.php`: PHP fallback for deployed app version metadata.
 
 ## Data Flow
 
@@ -38,3 +42,16 @@ The toolkit renderer keeps KiCad millimeter coordinates in SVG viewBox space. Ki
 - `GET /api/app-meta`: app metadata from `package.json`.
 - `GET /api/app-meta.php`: compatibility alias.
 - `/node_modules/...`: local development serving for browser ESM dependencies.
+
+## Deployment Model
+
+The FTP workflow runs `npm run build:static` before uploading frontend files.
+That command copies `src/` into `.deploy-src/`, rewrites `index.html` to load
+`/style.css?v=<package version>` and `/main.mjs?v=<package version>`, rewrites
+local `.mjs` imports and known browser package imports with the same version
+key, and emits a root `.htaccess` that applies no-store cache headers to
+browser assets on Apache/shared-hosting.
+
+The workflow uploads `.deploy-src/` to the document root, `api/` to `/api/`,
+`docs/` to `/docs/`, root `package.json` for deployed version metadata, and
+production `node_modules/` when dependency metadata changes.

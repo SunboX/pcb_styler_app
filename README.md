@@ -33,6 +33,9 @@ Browser-based KiCad PCB assembly-view renderer for `.kicad_pcb` files and KiCad 
 - `@sunbox/kicad-toolkit`: KiCad parsing, project archive loading/export,
   geometry, palette normalization, and SVG rendering
 - `src/AppController.mjs`: app orchestration and export flow
+- `src/StaticDeployBuilder.mjs`: Apache/shared-hosting artifact builder
+- `scripts/build-static-deploy.mjs`: static deployment build wrapper
+- `api/`: deployable PHP metadata endpoint for shared hosting
 - `tests/`: behavior and structure tests
 - `docs/`: architecture, setup, testing, security, troubleshooting
 - `spec/`: product scope and acceptance criteria
@@ -61,6 +64,18 @@ Open [http://localhost:3001/](http://localhost:3001/).
 ```bash
 npm test
 ```
+
+## Deployment
+
+```bash
+npm run build:static
+```
+
+The static build writes `.deploy-src/` with versioned browser module URLs and
+an Apache cache policy. The GitHub Actions FTP workflow deploys that artifact,
+`api/`, `docs/`, root `package.json`, and production `node_modules/` to the
+configured shared-hosting target using `FTP_SERVER`, `FTP_USERNAME`, and
+`FTP_PASSWORD` secrets.
 
 ## Formatting
 

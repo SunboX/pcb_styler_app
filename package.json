@@ -1,12 +1,13 @@
 {
     "name": "pcb-styler",
-    "version": "1.0.54",
+    "version": "1.0.55",
     "description": "Browser-based KiCad PCB styler and assembly-view renderer",
     "license": "AGPL-3.0-or-later",
     "private": true,
     "type": "module",
     "scripts": {
         "start": "node src/server.mjs",
+        "build:static": "node scripts/build-static-deploy.mjs",
         "test": "node --test tests",
         "format": "prettier --write .",
         "check:format": "prettier --check ."

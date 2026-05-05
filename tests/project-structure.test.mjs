@@ -44,17 +44,26 @@ test('required project files exist', async () => {
         'docs/testing.md',
         'docs/security.md',
         'docs/troubleshooting.md',
+        '.github/workflows/deploy-ftp.yml',
+        'api/.htaccess',
+        'api/app-meta.php',
+        'scripts/build-static-deploy.mjs',
         'src/index.html',
         'src/main.mjs',
         'src/style.css',
         'src/server.mjs',
+        'src/ServerAssetVersioner.mjs',
+        'src/StaticDeployBuilder.mjs',
         'src/core/AppState.mjs',
         'src/integrations/WebMcpBridge.mjs',
         'src/ui/AppView.mjs',
         'src/ui/BadgeControls.mjs',
         'tests/app-controller.test.mjs',
         'tests/app-state.test.mjs',
+        'tests/deploy-ftp-workflow.test.mjs',
+        'tests/php-app-meta-endpoint.test.mjs',
         'tests/project-structure.test.mjs',
+        'tests/static-deploy-builder.test.mjs',
         'tests/mjs-line-limit.test.mjs'
     ]
 
@@ -102,6 +111,10 @@ test('package scripts include start and test', async () => {
     const pkg = JSON.parse(raw)
 
     assert.equal(typeof pkg.scripts?.start, 'string')
+    assert.equal(
+        pkg.scripts?.['build:static'],
+        'node scripts/build-static-deploy.mjs'
+    )
     assert.equal(typeof pkg.scripts?.test, 'string')
     assert.equal(typeof pkg.dependencies?.['@sunbox/kicad-toolkit'], 'string')
 })
@@ -264,6 +277,7 @@ test('file metadata appears below layer controls', async () => {
  */
 test('app shell renders imprint footer with version binding', async () => {
     const source = await readFile(new URL('src/index.html', root), 'utf8')
+    const mainSource = await readFile(new URL('src/main.mjs', root), 'utf8')
     const styles = await readFile(
         new URL('src/styles/10-layout.css', root),
         'utf8'
@@ -290,6 +304,8 @@ test('app shell renders imprint footer with version binding', async () => {
     assert.match(source, /https:\/\/github\.com\/SunboX/)
     assert.match(source, /https:\/\/mastodon\.social\/@sonnenkiste/)
     assert.match(viewSource, /querySelectorAll\('\[data-app-version\]'\)/)
+    assert.match(mainSource, /\/api\/app-meta/)
+    assert.match(mainSource, /\/api\/app-meta\.php/)
     assert.match(footerStyles, /background:\s*var\(--surface\)/)
     assert.doesNotMatch(footerStyles, /background:\s*var\(--page\)/)
     assert.doesNotMatch(footerCardStyles, /linear-gradient/)
