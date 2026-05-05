@@ -1,6 +1,6 @@
 {
     "name": "pcb-styler",
-    "version": "1.0.55",
+    "version": "1.0.56",
     "description": "Browser-based KiCad PCB styler and assembly-view renderer",
     "license": "AGPL-3.0-or-later",
     "private": true,

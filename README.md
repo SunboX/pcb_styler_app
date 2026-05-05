@@ -7,6 +7,8 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 Browser-based KiCad PCB assembly-view renderer for `.kicad_pcb` files and KiCad project `.zip` archives.
 
+Live app: [https://pcb-styler.app/](https://pcb-styler.app/).
+
 ## Features
 
 - Client-side KiCad S-expression parsing for `.kicad_pcb` files through
