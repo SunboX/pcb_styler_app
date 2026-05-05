@@ -1,0 +1,25 @@
+{
+    "name": "pcb-styler",
+    "version": "1.0.54",
+    "description": "Browser-based KiCad PCB styler and assembly-view renderer",
+    "license": "AGPL-3.0-or-later",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "start": "node src/server.mjs",
+        "test": "node --test tests",
+        "format": "prettier --write .",
+        "check:format": "prettier --check ."
+    },
+    "dependencies": {
+        "@sunbox/kicad-toolkit": "git+ssh://git@github.com/SunboX/kicad-toolkit.git",
+        "express": "^5.1.0",
+        "fflate": "^0.8.2"
+    },
+    "devDependencies": {
+        "prettier": "^3.4.2"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}

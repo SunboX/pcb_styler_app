@@ -1,0 +1,11 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <rect width="64" height="64" rx="10" fill="#0a0a0b" />
+    <path d="M14 18h36v28H14z" fill="none" stroke="#8e929c" stroke-width="4" />
+    <circle cx="24" cy="28" r="4" fill="#cfd1d4" />
+    <circle cx="40" cy="28" r="4" fill="#cfd1d4" />
+    <rect x="21" y="38" width="22" height="4" rx="2" fill="#0a6f5b" />
+</svg>

@@ -1,0 +1,18 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PCB Styler
+Upstream-Contact: André Fiedler <mail@andrefiedler.de>
+Source: https://github.com/SunboX/pcb_styler_app
+
+Files: package.json package-lock.json .gitignore AGENTS.md
+Copyright: 2026 André Fiedler
+License: AGPL-3.0-or-later
+
+Files: tests/fixtures/*
+Copyright: 2026 André Fiedler
+License: AGPL-3.0-or-later
+
+Files: output/*
+Copyright: 2026 André Fiedler
+License: AGPL-3.0-or-later
+Comment: Generated local render/reference artifacts. Preserve any embedded
+ third-party notices if future source inputs include them.
