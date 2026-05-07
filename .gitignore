@@ -8,3 +8,4 @@ coverage
 output
 .deploy-src
 .deploy-root
+docs/superpowers/
