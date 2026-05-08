@@ -1,6 +1,16 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+const browserBareSpecifierMap = Object.freeze({
+    'kicad-toolkit': '/node_modules/kicad-toolkit/src/index.mjs',
+    'kicad-toolkit/parser': '/node_modules/kicad-toolkit/src/parser.mjs',
+    'kicad-toolkit/renderers': '/node_modules/kicad-toolkit/src/renderers.mjs',
+    'altium-toolkit/parser': '/node_modules/altium-toolkit/src/parser.mjs',
+    'altium-toolkit/renderers':
+        '/node_modules/altium-toolkit/src/renderers.mjs',
+    fflate: '/node_modules/fflate/esm/browser.js'
+})
+
 /**
  * Rewrites served frontend assets so browser caches track the current app
  * version across full ESM import graphs.
@@ -62,17 +72,22 @@ export class ServerAssetVersioner {
      */
     static resolveBrowserBareSpecifier(specifier) {
         const normalizedSpecifier = String(specifier || '')
-        const dependencyMap = {
-            '@sunbox/kicad-toolkit':
-                '/node_modules/@sunbox/kicad-toolkit/src/index.mjs',
-            '@sunbox/kicad-toolkit/parser':
-                '/node_modules/@sunbox/kicad-toolkit/src/parser.mjs',
-            '@sunbox/kicad-toolkit/renderers':
-                '/node_modules/@sunbox/kicad-toolkit/src/renderers.mjs',
-            fflate: '/node_modules/fflate/esm/browser.js'
-        }
 
-        return dependencyMap[normalizedSpecifier] || ''
+        return browserBareSpecifierMap[normalizedSpecifier] || ''
+    }
+
+    /**
+     * Lists package roots referenced by browser bare-specifier rewrites.
+     * @returns {string[]}
+     */
+    static listBrowserDependencyPackages() {
+        const packageNames = Object.values(browserBareSpecifierMap)
+            .map((assetPath) =>
+                ServerAssetVersioner.#extractNodeModulePackageName(assetPath)
+            )
+            .filter(Boolean)
+
+        return Array.from(new Set(packageNames)).sort()
     }
 
     /**
@@ -84,7 +99,7 @@ export class ServerAssetVersioner {
      */
     static rewriteBareJavaScriptSpecifiers(source, versionKey) {
         const specifierPattern =
-            '(@sunbox\\/kicad-toolkit(?:\\/(?:parser|renderers))?|fflate)'
+            '(kicad-toolkit(?:\\/(?:parser|renderers))?|altium-toolkit\\/(?:parser|renderers)|fflate)'
         const patterns = [
             new RegExp('(from\\s+[\'"])' + specifierPattern + '([\'"])', 'g'),
             new RegExp('(import\\s+[\'"])' + specifierPattern + '([\'"])', 'g'),
@@ -169,5 +184,18 @@ export class ServerAssetVersioner {
             rewrittenSource,
             versionKey
         )
+    }
+
+    /**
+     * Extracts the npm package name from a `/node_modules/...` asset path.
+     * @param {string} assetPath
+     * @returns {string}
+     */
+    static #extractNodeModulePackageName(assetPath) {
+        const match = String(assetPath || '').match(
+            /^\/node_modules\/((?:@[^/]+\/)?[^/]+)/u
+        )
+
+        return match?.[1] || ''
     }
 }

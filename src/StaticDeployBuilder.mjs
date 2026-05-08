@@ -26,6 +26,10 @@ export class StaticDeployBuilder {
         StaticDeployBuilder.#assertSafeOutputPath(sourceRoot, outputRoot)
 
         await StaticDeployBuilder.copySourceTree(sourceRoot, outputRoot)
+        await StaticDeployBuilder.copyBrowserDependencies(
+            projectRoot,
+            outputRoot
+        )
         await StaticDeployBuilder.rewriteStaticAssets(outputRoot, version)
         await StaticDeployBuilder.writeApacheCachePolicy(outputRoot)
 
@@ -63,6 +67,30 @@ export class StaticDeployBuilder {
     }
 
     /**
+     * Copies browser dependency packages referenced by rewritten imports.
+     * @param {string} projectRoot
+     * @param {string} outputRoot
+     * @returns {Promise<void>}
+     */
+    static async copyBrowserDependencies(projectRoot, outputRoot) {
+        const vendorRoot = path.join(projectRoot, 'node_modules')
+        const outputVendorRoot = path.join(outputRoot, 'node_modules')
+        const packageNames =
+            ServerAssetVersioner.listBrowserDependencyPackages()
+
+        await mkdir(outputVendorRoot, { recursive: true })
+        await Promise.all(
+            packageNames.map((packageName) =>
+                StaticDeployBuilder.#copyBrowserDependency(
+                    vendorRoot,
+                    outputVendorRoot,
+                    packageName
+                )
+            )
+        )
+    }
+
+    /**
      * Rewrites index.html and local module imports with the app version key.
      * @param {string} outputRoot
      * @param {string} version
@@ -73,7 +101,7 @@ export class StaticDeployBuilder {
         const indexHtml = await readFile(indexPath, 'utf8')
         const modulePaths = await StaticDeployBuilder.#collectMatchingFiles(
             outputRoot,
-            (filePath) => filePath.endsWith('.mjs')
+            (filePath) => /\.(?:mjs|js)$/u.test(filePath)
         )
 
         await writeFile(
@@ -161,6 +189,51 @@ export class StaticDeployBuilder {
         )
 
         return nestedFiles.flat()
+    }
+
+    /**
+     * Copies one dependency package while materializing local symlinks.
+     * @param {string} vendorRoot
+     * @param {string} outputVendorRoot
+     * @param {string} packageName
+     * @returns {Promise<void>}
+     */
+    static async #copyBrowserDependency(
+        vendorRoot,
+        outputVendorRoot,
+        packageName
+    ) {
+        const sourceRoot = path.join(vendorRoot, packageName)
+        const outputRoot = path.join(outputVendorRoot, packageName)
+
+        await cp(sourceRoot, outputRoot, {
+            dereference: true,
+            recursive: true,
+            filter: (sourcePath) =>
+                !StaticDeployBuilder.#isIgnoredBrowserDependencySource(
+                    sourceRoot,
+                    sourcePath
+                )
+        })
+    }
+
+    /**
+     * Returns true for package files that should not ship in static deploys.
+     * @param {string} packageRoot
+     * @param {string} sourcePath
+     * @returns {boolean}
+     */
+    static #isIgnoredBrowserDependencySource(packageRoot, sourcePath) {
+        const relativePath = path.relative(packageRoot, sourcePath)
+        const parts = relativePath.split(path.sep).filter(Boolean)
+        const baseName = path.basename(sourcePath)
+
+        return (
+            baseName === '.DS_Store' ||
+            parts.includes('.git') ||
+            parts.includes('node_modules') ||
+            parts.includes('tests')
+        )
     }
 
     /**

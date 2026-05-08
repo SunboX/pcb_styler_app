@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import express from 'express'
 import path from 'node:path'
-import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { createLocalAssetApp } from './LocalAssetServer.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -13,32 +12,10 @@ const staticRoot = path.join(projectRoot, 'src')
 const vendorRoot = path.join(projectRoot, 'node_modules')
 const port = parsePort(process.env.PORT)
 
-const app = express()
-
-app.use(express.json({ limit: '1mb' }))
-app.use('/node_modules', express.static(vendorRoot))
-app.use(express.static(staticRoot, { extensions: ['html'] }))
-
-app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok' })
-})
-
-app.get(['/api/app-meta', '/api/app-meta.php'], async (_req, res) => {
-    const version = await readAppVersion(projectRoot)
-    res.setHeader(
-        'Cache-Control',
-        'no-store, no-cache, must-revalidate, max-age=0'
-    )
-    res.json({ version })
-})
-
-app.use((req, res) => {
-    const hasFileExtension = /.[a-z0-9]+$/i.test(req.path)
-    if (hasFileExtension) {
-        res.status(404).send('Not Found')
-        return
-    }
-    res.sendFile(path.join(staticRoot, 'index.html'))
+const app = createLocalAssetApp({
+    projectRoot,
+    staticRoot,
+    vendorRoot
 })
 
 app.listen(port, () => {
@@ -56,29 +33,4 @@ function parsePort(rawPort) {
         return parsed
     }
     return 3001
-}
-
-/**
- * Reads app version from known metadata files.
- * @param {string} root
- * @returns {Promise<string>}
- */
-async function readAppVersion(root) {
-    const files = [
-        path.join(root, 'package.json'),
-        path.join(root, 'api', 'app-version.json')
-    ]
-
-    for (const filePath of files) {
-        try {
-            const raw = await readFile(filePath, 'utf8')
-            const parsed = JSON.parse(raw)
-            const version = String(parsed?.version || '').trim()
-            if (version) return version
-        } catch (_error) {
-            // Ignore missing or malformed metadata files.
-        }
-    }
-
-    return ''
 }

@@ -85,13 +85,128 @@ test('static deploy builder writes versioned Apache assets', async (t) => {
         mainSource,
         new RegExp('\\./AppController\\.mjs\\?v=' + pkg.version)
     )
-    assert.doesNotMatch(controllerSource, /from ['"]@sunbox\/kicad-toolkit['"]/)
+    assert.doesNotMatch(controllerSource, /from ['"]@sunbox\/kicad-toolkit/)
     assert.match(
         controllerSource,
+        new RegExp('\\./core/ProjectArchive\\.mjs\\?v=' + pkg.version)
+    )
+    const boardLoaderSource = await readFile(
+        path.join(outputRoot, 'core', 'BoardFileLoader.mjs'),
+        'utf8'
+    )
+    const boardRendererSource = await readFile(
+        path.join(outputRoot, 'ui', 'BoardSvgRenderer.mjs'),
+        'utf8'
+    )
+    const altiumRendererSource = await readFile(
+        path.join(outputRoot, 'ui', 'AltiumPcbSvgRenderer.mjs'),
+        'utf8'
+    )
+    const altiumParserSource = await readFile(
+        path.join(
+            outputRoot,
+            'node_modules',
+            'altium-toolkit',
+            'src',
+            'parser.mjs'
+        ),
+        'utf8'
+    )
+    const kicadParserSource = await readFile(
+        path.join(
+            outputRoot,
+            'node_modules',
+            'kicad-toolkit',
+            'src',
+            'parser.mjs'
+        ),
+        'utf8'
+    )
+    const fflateBrowserSource = await readFile(
+        path.join(outputRoot, 'node_modules', 'fflate', 'esm', 'browser.js'),
+        'utf8'
+    )
+    const kicadRendererSource = await readFile(
+        path.join(outputRoot, 'ui', 'KicadPcbSvgRenderer.mjs'),
+        'utf8'
+    )
+    const decoratorSource = await readFile(
+        path.join(outputRoot, 'ui', 'PcbSvgRendererDecorator.mjs'),
+        'utf8'
+    )
+
+    assert.doesNotMatch(boardLoaderSource, /from ['"]kicad-toolkit\/parser['"]/)
+    assert.doesNotMatch(
+        boardRendererSource,
+        /from ['"]kicad-toolkit\/renderers['"]/
+    )
+    assert.doesNotMatch(
+        kicadRendererSource,
+        /from ['"]kicad-toolkit\/(?:parser|renderers)['"]/
+    )
+    assert.doesNotMatch(
+        boardLoaderSource,
+        /from ['"]altium-toolkit\/parser['"]/
+    )
+    assert.doesNotMatch(
+        boardRendererSource,
+        /from ['"]altium-toolkit\/renderers['"]/
+    )
+    assert.doesNotMatch(
+        altiumRendererSource,
+        /from ['"]altium-toolkit\/renderers['"]/
+    )
+    assert.match(
+        boardLoaderSource,
         new RegExp(
-            '/node_modules/@sunbox/kicad-toolkit/src/index\\.mjs\\?v=' +
+            '/node_modules/kicad-toolkit/src/parser\\.mjs\\?v=' + pkg.version
+        )
+    )
+    assert.match(
+        kicadRendererSource,
+        new RegExp(
+            '/node_modules/kicad-toolkit/src/renderers\\.mjs\\?v=' + pkg.version
+        )
+    )
+    assert.match(
+        kicadRendererSource,
+        new RegExp(
+            '/node_modules/kicad-toolkit/src/parser\\.mjs\\?v=' + pkg.version
+        )
+    )
+    assert.match(
+        boardLoaderSource,
+        new RegExp(
+            '/node_modules/altium-toolkit/src/parser\\.mjs\\?v=' + pkg.version
+        )
+    )
+    assert.match(
+        altiumRendererSource,
+        new RegExp(
+            '/node_modules/altium-toolkit/src/renderers\\.mjs\\?v=' +
                 pkg.version
         )
+    )
+    assert.match(
+        altiumParserSource,
+        new RegExp('\\./core/altium/AltiumParser\\.mjs\\?v=' + pkg.version)
+    )
+    assert.match(
+        kicadParserSource,
+        new RegExp('\\./core/Geometry\\.mjs\\?v=' + pkg.version)
+    )
+    assert.match(fflateBrowserSource, /function/)
+    assert.match(
+        decoratorSource,
+        new RegExp('\\./RenderPalette\\.mjs\\?v=' + pkg.version)
+    )
+    assert.match(
+        decoratorSource,
+        new RegExp('\\./BadgeRenderer\\.mjs\\?v=' + pkg.version)
+    )
+    assert.match(
+        decoratorSource,
+        new RegExp('\\./ComponentHighlight\\.mjs\\?v=' + pkg.version)
     )
     assert.match(htaccessSource, /Cache-Control/)
     assert.match(htaccessSource, /no-store/)

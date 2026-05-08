@@ -1,14 +1,12 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {
-    KicadProjectLoader,
-    PcbSvgRenderer,
-    ProjectArchive
-} from '@sunbox/kicad-toolkit'
+import { BoardFileLoader } from './core/BoardFileLoader.mjs'
+import { ProjectArchive } from './core/ProjectArchive.mjs'
+import { BoardSvgRenderer } from './ui/BoardSvgRenderer.mjs'
 
 /**
- * Coordinates app state, KiCad loading, rendering, and exports.
+ * Coordinates app state, PCB loading, rendering, and exports.
  */
 export class AppController {
     /** @type {import('./core/AppState.mjs').AppState} */
@@ -17,25 +15,25 @@ export class AppController {
     /** @type {import('./ui/AppView.mjs').AppView} */
     #view
 
-    /** @type {{ loadFiles: (files: FileList | File[]) => Promise<{ board: object, sourceFileName: string, sourceText?: string, projectSettings?: object | null }> }} */
+    /** @type {{ loadFiles: (files: FileList | File[]) => Promise<{ board: object, sourceFileName: string, sourceText?: string, sourceBytes?: Uint8Array | null, projectSettings?: object | null, sourceFormat?: string }> }} */
     #loader
 
-    /** @type {{ render: (board: object | null, options: { side: string, layerStyles: Record<string, object>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }) => string }} */
+    /** @type {{ render: (board: object | null, options: { side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }) => string }} */
     #renderer
 
     /**
      * @param {{
      * state: import('./core/AppState.mjs').AppState,
      * view: import('./ui/AppView.mjs').AppView,
-     * loader?: { loadFiles: (files: FileList | File[]) => Promise<{ board: object, sourceFileName: string, sourceText?: string, projectSettings?: object | null }> },
-     * renderer?: { render: (board: object | null, options: { side: string, layerStyles: Record<string, object>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }) => string }
+     * loader?: { loadFiles: (files: FileList | File[]) => Promise<{ board: object, sourceFileName: string, sourceText?: string, sourceBytes?: Uint8Array | null, projectSettings?: object | null, sourceFormat?: string }> },
+     * renderer?: { render: (board: object | null, options: { side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }) => string }
      * }} dependencies
      */
     constructor(dependencies) {
         this.#state = dependencies.state
         this.#view = dependencies.view
-        this.#loader = dependencies.loader || KicadProjectLoader
-        this.#renderer = dependencies.renderer || PcbSvgRenderer
+        this.#loader = dependencies.loader || new BoardFileLoader()
+        this.#renderer = dependencies.renderer || new BoardSvgRenderer()
     }
 
     /**
@@ -44,12 +42,18 @@ export class AppController {
      */
     async init() {
         this.#state.subscribe((snapshot) => {
-            this.#view.render(snapshot, this.#renderSvg(snapshot))
+            this.#view.render(
+                enrichViewSnapshot(snapshot),
+                this.#renderSvg(snapshot)
+            )
             this.#view.setStatus(snapshot.status)
         })
 
         this.#view.bindOpenFiles((files) => this.#handleOpenFiles(files))
         this.#view.bindSideChange((side) => this.#handleSideChange(side))
+        this.#view.bindRenderPresetChange((preset) =>
+            this.#handleRenderPresetChange(preset)
+        )
         this.#view.bindLayerStyleChange((key, patch) =>
             this.#handleLayerStyleChange(key, patch)
         )
@@ -80,7 +84,7 @@ export class AppController {
 
     /**
      * Returns a stable state snapshot for integration consumers.
-     * @returns {{ app: string, sourceFileName: string, side: string, status: string, loaded: boolean, board: object | null, footprints: object[], layerStyles: object, highlightedFootprints: readonly string[], highlightColor: string, badges: readonly object[], badgeStyle: object }}
+     * @returns {{ app: string, sourceFileName: string, side: string, renderPreset: string, status: string, loaded: boolean, board: object | null, footprints: object[], hoveredComponent: object | null, layerStyles: object, highlightedFootprints: readonly string[], highlightColor: string, badges: readonly object[], badgeStyle: object }}
      */
     getPublicState() {
         const snapshot = this.#state.getSnapshot()
@@ -88,10 +92,15 @@ export class AppController {
             app: 'PCB Styler',
             sourceFileName: snapshot.sourceFileName,
             side: snapshot.side,
+            renderPreset: snapshot.renderPreset,
             status: snapshot.status,
             loaded: Boolean(snapshot.board),
             board: summarizeBoard(snapshot.board),
             footprints: summarizeFootprints(snapshot.board),
+            hoveredComponent: summarizeHoveredComponent(
+                snapshot.board,
+                snapshot.hoveredFootprintId
+            ),
             layerStyles: snapshot.layerStyles,
             highlightedFootprints: snapshot.highlightedFootprints,
             highlightColor: snapshot.highlightColor,
@@ -107,6 +116,16 @@ export class AppController {
      */
     setSide(side) {
         this.#handleSideChange(side)
+        return this.getPublicState()
+    }
+
+    /**
+     * Switches render style preset through the same path as the UI.
+     * @param {string} preset
+     * @returns {object}
+     */
+    setRenderPreset(preset) {
+        this.#handleRenderPresetChange(preset)
         return this.getPublicState()
     }
 
@@ -248,7 +267,7 @@ export class AppController {
     async #handleOpenFiles(files) {
         if (!files || files.length === 0) return
 
-        this.#state.setValue('status', 'Loading KiCad board...')
+        this.#state.setValue('status', 'Loading PCB board...')
 
         try {
             const result = await this.#loader.loadFiles(files)
@@ -256,6 +275,8 @@ export class AppController {
                 board: result.board,
                 sourceFileName: result.sourceFileName,
                 boardSource: result.sourceText || '',
+                sourceBytes: result.sourceBytes || null,
+                sourceFormat: result.sourceFormat || '',
                 ...(result.projectSettings || {}),
                 status: result.projectSettings
                     ? 'Loaded ' + result.sourceFileName + ' with settings.'
@@ -266,6 +287,8 @@ export class AppController {
                 board: null,
                 sourceFileName: '',
                 boardSource: '',
+                sourceBytes: null,
+                sourceFormat: '',
                 status:
                     error instanceof Error
                         ? error.message
@@ -281,6 +304,18 @@ export class AppController {
      */
     #handleSideChange(side) {
         this.#state.setValue('side', side === 'back' ? 'back' : 'front')
+    }
+
+    /**
+     * Handles render preset switching.
+     * @param {string} preset
+     * @returns {void}
+     */
+    #handleRenderPresetChange(preset) {
+        this.#state.setValue(
+            'renderPreset',
+            preset === 'kicad' ? 'kicad' : 'manual'
+        )
     }
 
     /**
@@ -486,12 +521,13 @@ export class AppController {
 
     /**
      * Renders current SVG.
-     * @param {{ board: object | null, side: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }} snapshot
+     * @param {{ board: object | null, side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }} snapshot
      * @returns {string}
      */
     #renderSvg(snapshot) {
         return this.#renderer.render(snapshot.board, {
             side: snapshot.side,
+            renderPreset: snapshot.renderPreset,
             layerStyles: snapshot.layerStyles,
             highlightedFootprints: snapshot.highlightedFootprints,
             hoveredFootprintId: snapshot.hoveredFootprintId,
@@ -499,6 +535,21 @@ export class AppController {
             badges: snapshot.badges,
             badgeStyle: snapshot.badgeStyle
         })
+    }
+}
+
+/**
+ * Adds derived view-only fields to a state snapshot.
+ * @param {{ board: object | null, hoveredFootprintId: string }} snapshot
+ * @returns {object}
+ */
+function enrichViewSnapshot(snapshot) {
+    return {
+        ...snapshot,
+        hoveredComponent: summarizeHoveredComponent(
+            snapshot.board,
+            snapshot.hoveredFootprintId
+        )
     }
 }
 
@@ -513,6 +564,7 @@ function exportFileName(sourceFileName, extension) {
         .split('/')
         .pop()
         .replace(/\.kicad_pcb$/i, '')
+        .replace(/\.pcbdoc$/i, '')
         .replace(/[^a-z0-9._-]+/gi, '-')
         .replace(/^-+|-+$/g, '')
     return (clean || 'pcb') + '.' + extension
@@ -524,7 +576,13 @@ function exportFileName(sourceFileName, extension) {
  * @returns {{ x: number, y: number }}
  */
 function boardCenter(board) {
-    const bounds = board.bounds || { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    const bounds = board.bounds ||
+        altiumBoardBounds(board) || {
+            minX: 0,
+            minY: 0,
+            maxX: 0,
+            maxY: 0
+        }
     const minX = finiteOrZero(bounds.minX)
     const minY = finiteOrZero(bounds.minY)
     const maxX = finiteOrZero(bounds.maxX)
@@ -599,6 +657,21 @@ function normalizeBadgePatch(patch) {
  */
 function summarizeBoard(board) {
     if (!board) return null
+    if (isAltiumPcbModel(board)) {
+        const pcb = board.pcb || {}
+        const outline = pcb.boardOutline || {}
+        return {
+            title: String(board.summary?.title || board.fileName || ''),
+            footprintCount: Array.isArray(pcb.components)
+                ? pcb.components.length
+                : 0,
+            padCount: Array.isArray(pcb.pads) ? pcb.pads.length : 0,
+            outline:
+                Array.isArray(outline.segments) && outline.segments.length > 0,
+            bounds: altiumBoardBounds(board)
+        }
+    }
+
     return {
         title: String(board.title || ''),
         footprintCount: Array.isArray(board.footprints)
@@ -616,12 +689,157 @@ function summarizeBoard(board) {
  * @returns {object[]}
  */
 function summarizeFootprints(board) {
-    if (!board || !Array.isArray(board.footprints)) return []
+    if (!board) return []
+    if (isAltiumPcbModel(board)) {
+        return (board.pcb?.components || []).map((component, index) => ({
+            id: altiumComponentId(component, index),
+            reference: componentReference(component),
+            side:
+                String(component.layer || '').toLowerCase() === 'bottom'
+                    ? 'back'
+                    : 'front'
+        }))
+    }
+    if (!Array.isArray(board.footprints)) return []
+
     return board.footprints.map((footprint) => ({
         id: String(footprint.id || ''),
         reference: String(footprint.reference || ''),
         side: footprint.side === 'back' ? 'back' : 'front'
     }))
+}
+
+/**
+ * Creates compact public information for the currently hovered component.
+ * @param {object | null} board
+ * @param {unknown} footprintId
+ * @returns {object | null}
+ */
+function summarizeHoveredComponent(board, footprintId) {
+    const id = String(footprintId || '').trim()
+    if (!board || !id) return null
+
+    return isAltiumPcbModel(board)
+        ? summarizeHoveredAltiumComponent(board, id)
+        : summarizeHoveredKicadComponent(board, id)
+}
+
+/**
+ * Creates hovered component info from a KiCad footprint.
+ * @param {object} board
+ * @param {string} id
+ * @returns {object}
+ */
+function summarizeHoveredKicadComponent(board, id) {
+    const footprint = (board.footprints || []).find(
+        (item) => String(item?.id || '').trim() === id
+    )
+    if (!footprint) return { id, sourceFormat: 'KiCad' }
+
+    return compactComponentInfo({
+        id,
+        reference: firstString(footprint.reference, footprint.ref),
+        side: normalizeSide(footprint.side),
+        value: firstString(footprint.value, footprint.properties?.Value),
+        description: firstString(
+            footprint.description,
+            footprint.properties?.Description
+        ),
+        package: firstString(
+            footprint.footprint,
+            footprint.package,
+            footprint.libId
+        ),
+        sourceFormat: 'KiCad'
+    })
+}
+
+/**
+ * Creates hovered component info from an Altium component.
+ * @param {object} board
+ * @param {string} id
+ * @returns {object}
+ */
+function summarizeHoveredAltiumComponent(board, id) {
+    const components = board.pcb?.components || []
+    const component = components.find(
+        (item, index) => altiumComponentId(item, index) === id
+    )
+    if (!component) return { id, sourceFormat: 'Altium' }
+
+    return compactComponentInfo({
+        id,
+        reference: componentReference(component),
+        side: normalizeSide(component.layer),
+        value: firstString(component.comment, component.value),
+        description: firstString(component.description, component.source),
+        package: firstString(
+            component.pattern,
+            component.footprint,
+            component.package
+        ),
+        sourceFormat: 'Altium'
+    })
+}
+
+/**
+ * Removes empty optional fields from a component info object.
+ * @param {Record<string, unknown>} info
+ * @returns {object}
+ */
+function compactComponentInfo(info) {
+    const compact = {}
+    Object.entries(info).forEach(([key, value]) => {
+        const text = String(value || '').trim()
+        if (text) compact[key] = text
+    })
+    return compact
+}
+
+/**
+ * Returns the first non-empty string from a list of values.
+ * @param {...unknown} values
+ * @returns {string}
+ */
+function firstString(...values) {
+    for (const value of values) {
+        const text = String(value || '').trim()
+        if (text) return text
+    }
+    return ''
+}
+
+/**
+ * Normalizes component side metadata.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeSide(value) {
+    const side = String(value || '')
+        .trim()
+        .toLowerCase()
+    if (side === 'back' || side === 'bottom') return 'back'
+    if (side === 'front' || side === 'top') return 'front'
+    return ''
+}
+
+/**
+ * Returns the app-level Altium footprint id.
+ * @param {object} component
+ * @param {number} index
+ * @returns {string}
+ */
+function altiumComponentId(component, index) {
+    return 'altium:' + (componentReference(component) || String(index))
+}
+
+/**
+ * Returns the visible component reference.
+ * @param {object} component
+ * @returns {string}
+ */
+function componentReference(component) {
+    return String(component?.designator || '').trim()
 }
 
 /**
@@ -656,4 +874,37 @@ function nextBadgeText(badges) {
             })
         ) + 1
     return String(next)
+}
+
+/**
+ * Returns true for normalized Altium PCB models.
+ * @param {object | null} board
+ * @returns {boolean}
+ */
+function isAltiumPcbModel(board) {
+    return Boolean(board?.kind === 'pcb' && board?.fileType === 'PcbDoc')
+}
+
+/**
+ * Resolves Altium board bounds from board outline metadata.
+ * @param {object | null} board
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+ */
+function altiumBoardBounds(board) {
+    const outline = board?.pcb?.boardOutline
+    if (!outline) return null
+
+    const minX = finiteOrZero(outline.minX)
+    const minY = finiteOrZero(outline.minY)
+    const width = Number(outline.widthMil)
+    const height = Number(outline.heightMil)
+
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+
+    return {
+        minX,
+        minY,
+        maxX: minX + width,
+        maxY: minY + height
+    }
 }

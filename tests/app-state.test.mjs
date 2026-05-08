@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { RenderPalette } from '@sunbox/kicad-toolkit'
+import { RenderPalette } from '../src/ui/RenderPalette.mjs'
 import { AppState } from '../src/core/AppState.mjs'
 
 /**
@@ -16,9 +16,18 @@ test('AppState initializes with defaults', () => {
     assert.equal(snapshot.board, null)
     assert.equal(snapshot.sourceFileName, '')
     assert.equal(snapshot.boardSource, '')
+    assert.equal(snapshot.sourceFormat, '')
+    assert.equal(snapshot.sourceBytes, null)
     assert.equal(snapshot.side, 'front')
+    assert.equal(snapshot.renderPreset, 'manual')
     assert.equal(snapshot.status, 'Ready.')
     assert.deepEqual(snapshot.layerStyles, RenderPalette.defaultStyles())
+    assert.equal(snapshot.layerStyles.traces.visible, false)
+    assert.equal(snapshot.layerStyles.zones.visible, false)
+    assert.equal(snapshot.layerStyles.vias.visible, false)
+    assert.equal(snapshot.layerStyles.viaDrills.visible, false)
+    assert.equal(snapshot.layerStyles.pads.visible, true)
+    assert.equal(snapshot.layerStyles.padDrills.visible, true)
     assert.deepEqual(snapshot.badges, [])
     assert.deepEqual(snapshot.badgeStyle, {
         foregroundColor: '#000000',
@@ -32,13 +41,40 @@ test('AppState initializes with defaults', () => {
 })
 
 /**
+ * Verifies binary board sources are stored without exposing mutable state.
+ */
+test('AppState stores source bytes for binary board formats', () => {
+    const state = new AppState({
+        sourceFileName: 'amp.PcbDoc',
+        sourceBytes: new Uint8Array([1, 2, 3]),
+        sourceFormat: 'altium'
+    })
+    const snapshot = state.getSnapshot()
+
+    assert.deepEqual([...snapshot.sourceBytes], [1, 2, 3])
+    assert.equal(snapshot.sourceFormat, 'altium')
+
+    snapshot.sourceBytes[0] = 99
+    assert.deepEqual([...state.getSnapshot().sourceBytes], [1, 2, 3])
+
+    state.patch({ board: null })
+    assert.equal(state.getSnapshot().sourceBytes, null)
+    assert.equal(state.getSnapshot().sourceFormat, '')
+})
+
+/**
  * Verifies patch operations update supported fields.
  */
 test('AppState.patch updates multiple fields', () => {
     const state = new AppState({ side: 'front', status: 'Ready.' })
-    const snapshot = state.patch({ side: 'back', status: 'Loaded board.' })
+    const snapshot = state.patch({
+        side: 'back',
+        renderPreset: 'kicad',
+        status: 'Loaded board.'
+    })
 
     assert.equal(snapshot.side, 'back')
+    assert.equal(snapshot.renderPreset, 'kicad')
     assert.equal(snapshot.status, 'Loaded board.')
 })
 
@@ -88,6 +124,35 @@ test('AppState stores normalized render layer styles', () => {
     assert.equal(snapshot.layerStyles.silkscreen.borderColor, '#fedcba')
     assert.equal(snapshot.layerStyles.zones.fillColor, '#3c3f46')
     assert.equal(snapshot.layerStyles.zones.borderWidth, null)
+})
+
+/**
+ * Verifies legacy drill layer settings migrate to split drill controls.
+ */
+test('AppState maps legacy drill styles to pad and via drill layers', () => {
+    const state = new AppState({
+        layerStyles: {
+            drills: {
+                visible: false,
+                fillColor: '#123456',
+                borderColor: '#654321',
+                borderWidth: 0.42
+            }
+        }
+    })
+    const snapshot = state.patch({
+        layerStyles: {
+            viaDrills: { visible: true, fillColor: '#abcdef' }
+        }
+    })
+
+    assert.equal(snapshot.layerStyles.padDrills.visible, false)
+    assert.equal(snapshot.layerStyles.padDrills.fillColor, '#123456')
+    assert.equal(snapshot.layerStyles.padDrills.borderColor, '#654321')
+    assert.equal(snapshot.layerStyles.padDrills.borderWidth, 0.42)
+    assert.equal(snapshot.layerStyles.viaDrills.visible, true)
+    assert.equal(snapshot.layerStyles.viaDrills.fillColor, '#abcdef')
+    assert.equal(snapshot.layerStyles.viaDrills.borderColor, '#654321')
 })
 
 /**

@@ -1,27 +1,31 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { BadgeStyle, RenderPalette } from '@sunbox/kicad-toolkit'
+import { BadgeStyle } from '../ui/BadgeStyle.mjs'
+import { RenderPalette } from '../ui/RenderPalette.mjs'
 
 /**
  * State container for the PCB styler workspace.
  */
 export class AppState {
-    /** @type {{ board: object | null, sourceFileName: string, boardSource: string, side: 'front' | 'back', status: string, layerStyles: Record<string, object>, highlightedFootprints: string[], hoveredFootprintId: string, highlightColor: string, badges: object[], badgeStyle: object }} */
+    /** @type {{ board: object | null, sourceFileName: string, boardSource: string, sourceBytes: Uint8Array | null, sourceFormat: '' | 'kicad' | 'altium', side: 'front' | 'back', renderPreset: 'manual' | 'kicad', status: string, layerStyles: Record<string, object>, highlightedFootprints: string[], hoveredFootprintId: string, highlightColor: string, badges: object[], badgeStyle: object }} */
     #state
 
     /** @type {Set<(snapshot: object) => void>} */
     #listeners
 
     /**
-     * @param {{ board?: object | null, sourceFileName?: string, boardSource?: string, side?: 'front' | 'back', status?: string, layerStyles?: Record<string, object>, colors?: Record<string, string>, highlightedFootprints?: unknown[], hoveredFootprintId?: unknown, highlightColor?: unknown, badges?: unknown[], badgeStyle?: unknown }} [initial]
+     * @param {{ board?: object | null, sourceFileName?: string, boardSource?: string, sourceBytes?: Uint8Array | ArrayBuffer | null, sourceFormat?: string, side?: 'front' | 'back', renderPreset?: string, status?: string, layerStyles?: Record<string, object>, colors?: Record<string, string>, highlightedFootprints?: unknown[], hoveredFootprintId?: unknown, highlightColor?: unknown, badges?: unknown[], badgeStyle?: unknown }} [initial]
      */
     constructor(initial = {}) {
         this.#state = {
             board: initial.board || null,
             sourceFileName: String(initial.sourceFileName || ''),
             boardSource: String(initial.boardSource || ''),
+            sourceBytes: normalizeSourceBytes(initial.sourceBytes),
+            sourceFormat: normalizeSourceFormat(initial.sourceFormat),
             side: initial.side === 'back' ? 'back' : 'front',
+            renderPreset: normalizeRenderPreset(initial.renderPreset),
             status: String(initial.status || 'Ready.'),
             layerStyles: RenderPalette.resolveStyles(
                 initial.layerStyles,
@@ -45,11 +49,12 @@ export class AppState {
 
     /**
      * Returns a readonly snapshot.
-     * @returns {{ board: object | null, sourceFileName: string, boardSource: string, side: 'front' | 'back', status: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }}
+     * @returns {{ board: object | null, sourceFileName: string, boardSource: string, sourceBytes: Uint8Array | null, sourceFormat: '' | 'kicad' | 'altium', side: 'front' | 'back', renderPreset: 'manual' | 'kicad', status: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }}
      */
     getSnapshot() {
         return Object.freeze({
             ...this.#state,
+            sourceBytes: copySourceBytes(this.#state.sourceBytes),
             layerStyles: freezeStyles(this.#state.layerStyles),
             highlightedFootprints: Object.freeze([
                 ...this.#state.highlightedFootprints
@@ -63,8 +68,8 @@ export class AppState {
 
     /**
      * Sets one state field and notifies listeners.
-     * @param {'board' | 'sourceFileName' | 'boardSource' | 'side' | 'status' | 'layerStyles' | 'colors' | 'highlightedFootprints' | 'hoveredFootprintId' | 'highlightColor' | 'badges' | 'badgeStyle'} key
-     * @param {object | string | null | Record<string, string> | unknown[]} value
+     * @param {'board' | 'sourceFileName' | 'boardSource' | 'sourceBytes' | 'sourceFormat' | 'side' | 'renderPreset' | 'status' | 'layerStyles' | 'colors' | 'highlightedFootprints' | 'hoveredFootprintId' | 'highlightColor' | 'badges' | 'badgeStyle'} key
+     * @param {object | string | null | Uint8Array | ArrayBuffer | Record<string, string> | unknown[]} value
      * @returns {object}
      */
     setValue(key, value) {
@@ -73,7 +78,7 @@ export class AppState {
 
     /**
      * Applies multiple state fields.
-     * @param {{ board?: object | null, sourceFileName?: string, boardSource?: string, side?: 'front' | 'back', status?: string, layerStyles?: Record<string, object>, colors?: Record<string, string>, highlightedFootprints?: unknown[], hoveredFootprintId?: unknown, highlightColor?: unknown, badges?: unknown[], badgeStyle?: unknown }} patch
+     * @param {{ board?: object | null, sourceFileName?: string, boardSource?: string, sourceBytes?: Uint8Array | ArrayBuffer | null, sourceFormat?: string, side?: 'front' | 'back', renderPreset?: string, status?: string, layerStyles?: Record<string, object>, colors?: Record<string, string>, highlightedFootprints?: unknown[], hoveredFootprintId?: unknown, highlightColor?: unknown, badges?: unknown[], badgeStyle?: unknown }} patch
      * @returns {object}
      */
     patch(patch) {
@@ -83,6 +88,8 @@ export class AppState {
             this.#state.hoveredFootprintId = ''
             this.#state.badges = []
             if (!('boardSource' in patch)) this.#state.boardSource = ''
+            if (!('sourceBytes' in patch)) this.#state.sourceBytes = null
+            if (!('sourceFormat' in patch)) this.#state.sourceFormat = ''
         }
         if ('sourceFileName' in patch) {
             this.#state.sourceFileName = String(patch.sourceFileName || '')
@@ -90,8 +97,17 @@ export class AppState {
         if ('boardSource' in patch) {
             this.#state.boardSource = String(patch.boardSource || '')
         }
+        if ('sourceBytes' in patch) {
+            this.#state.sourceBytes = normalizeSourceBytes(patch.sourceBytes)
+        }
+        if ('sourceFormat' in patch) {
+            this.#state.sourceFormat = normalizeSourceFormat(patch.sourceFormat)
+        }
         if ('side' in patch) {
             this.#state.side = patch.side === 'back' ? 'back' : 'front'
+        }
+        if ('renderPreset' in patch) {
+            this.#state.renderPreset = normalizeRenderPreset(patch.renderPreset)
         }
         if ('status' in patch) this.#state.status = String(patch.status || '')
         if ('layerStyles' in patch) {
@@ -176,6 +192,48 @@ function freezeStyles(layerStyles) {
             ])
         )
     )
+}
+
+/**
+ * Normalizes source bytes from loader and state inputs.
+ * @param {Uint8Array | ArrayBuffer | null | undefined} value
+ * @returns {Uint8Array | null}
+ */
+function normalizeSourceBytes(value) {
+    if (value instanceof Uint8Array) return new Uint8Array(value)
+    if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0))
+    return null
+}
+
+/**
+ * Copies source bytes for snapshots.
+ * @param {Uint8Array | null} value
+ * @returns {Uint8Array | null}
+ */
+function copySourceBytes(value) {
+    return value ? new Uint8Array(value) : null
+}
+
+/**
+ * Normalizes the source format marker.
+ * @param {unknown} value
+ * @returns {'' | 'kicad' | 'altium'}
+ */
+function normalizeSourceFormat(value) {
+    const normalized = String(value || '')
+        .trim()
+        .toLowerCase()
+    if (normalized === 'kicad' || normalized === 'altium') return normalized
+    return ''
+}
+
+/**
+ * Normalizes the render style preset.
+ * @param {unknown} value
+ * @returns {'manual' | 'kicad'}
+ */
+function normalizeRenderPreset(value) {
+    return String(value || '').trim() === 'kicad' ? 'kicad' : 'manual'
 }
 
 /**

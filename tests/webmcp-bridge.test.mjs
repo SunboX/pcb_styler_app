@@ -16,6 +16,7 @@ test('WebMcpBridge registers PCB Styler tools with modelContext', async () => {
     assert.deepEqual(modelContext.toolNames, [
         'pcb_styler_get_state',
         'pcb_styler_set_side',
+        'pcb_styler_set_render_preset',
         'pcb_styler_set_layer_style',
         'pcb_styler_set_highlight_color',
         'pcb_styler_toggle_component_highlight',
@@ -51,6 +52,16 @@ test('WebMcpBridge registers PCB Styler tools with modelContext', async () => {
     assert.equal(controller.actions.at(-1).name, 'setSide')
     assert.equal(controller.actions.at(-1).value, 'back')
     assert.equal(sideResult.side, 'back')
+
+    const presetResult = await modelContext.call(
+        'pcb_styler_set_render_preset',
+        {
+            preset: 'kicad'
+        }
+    )
+    assert.equal(controller.actions.at(-1).name, 'setRenderPreset')
+    assert.equal(controller.actions.at(-1).value, 'kicad')
+    assert.equal(presetResult.renderPreset, 'kicad')
 
     const badgeResult = await modelContext.call('pcb_styler_add_badge', {
         text: 'A1',
@@ -125,6 +136,7 @@ class FakeController {
     constructor() {
         this.actions = []
         this.side = 'front'
+        this.renderPreset = 'manual'
         this.badges = []
     }
 
@@ -136,6 +148,7 @@ class FakeController {
             app: 'PCB Styler',
             loaded: true,
             side: this.side,
+            renderPreset: this.renderPreset,
             badges: this.badges
         }
     }
@@ -147,6 +160,16 @@ class FakeController {
     setSide(side) {
         this.side = side
         this.actions.push({ name: 'setSide', value: side })
+        return this.getPublicState()
+    }
+
+    /**
+     * @param {'manual' | 'kicad'} preset
+     * @returns {object}
+     */
+    setRenderPreset(preset) {
+        this.renderPreset = preset
+        this.actions.push({ name: 'setRenderPreset', value: preset })
         return this.getPublicState()
     }
 

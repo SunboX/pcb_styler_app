@@ -49,6 +49,52 @@ test('AppController exposes PCB Styler in the public state', async () => {
     assert.equal(controller.getPublicState().app, 'PCB Styler')
 })
 
+test('AppController summarizes Altium PCB models in public state', async () => {
+    const board = {
+        kind: 'pcb',
+        fileType: 'PcbDoc',
+        fileName: 'amp.PcbDoc',
+        summary: { title: 'Amp Board' },
+        pcb: {
+            boardOutline: {
+                segments: [{}],
+                minX: 10,
+                minY: 20,
+                widthMil: 300,
+                heightMil: 200
+            },
+            components: [
+                { designator: 'U1', layer: 'Top' },
+                { designator: 'C1', layer: 'Bottom' }
+            ],
+            pads: [{}]
+        }
+    }
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'amp.PcbDoc' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+
+    const publicState = controller.getPublicState()
+    assert.equal(publicState.board.title, 'Amp Board')
+    assert.equal(publicState.board.footprintCount, 2)
+    assert.equal(publicState.board.padCount, 1)
+    assert.equal(publicState.board.outline, true)
+    assert.deepEqual(publicState.board.bounds, {
+        minX: 10,
+        minY: 20,
+        maxX: 310,
+        maxY: 220
+    })
+    assert.deepEqual(publicState.footprints, [
+        { id: 'altium:U1', reference: 'U1', side: 'front' },
+        { id: 'altium:C1', reference: 'C1', side: 'back' }
+    ])
+    assert.equal(controller.exportSvgForAgent().fileName, 'amp.svg')
+})
+
 test('AppController toggles side through state', async () => {
     const board = {
         title: 'Tiny Board',
@@ -97,6 +143,7 @@ test('AppController exposes agent-safe WebMCP actions', async () => {
     assert.equal(controller.getPublicState().footprints[0].reference, 'U1')
 
     controller.setSide('back')
+    controller.setRenderPreset('kicad')
     controller.setLayerStyle('pads', { visible: false })
     controller.setHighlightColor('#123456')
     controller.toggleFootprintHighlight('footprint:U1:0')
@@ -110,6 +157,7 @@ test('AppController exposes agent-safe WebMCP actions', async () => {
 
     const snapshot = state.getSnapshot()
     assert.equal(snapshot.side, 'back')
+    assert.equal(snapshot.renderPreset, 'kicad')
     assert.equal(snapshot.layerStyles.pads.visible, false)
     assert.deepEqual(snapshot.highlightedFootprints, ['footprint:U1:0'])
     assert.equal(snapshot.badges[0].text, 'A2')
@@ -126,6 +174,32 @@ test('AppController exposes agent-safe WebMCP actions', async () => {
     controller.clearHighlights()
     assert.deepEqual(state.getSnapshot().badges, [])
     assert.deepEqual(state.getSnapshot().highlightedFootprints, [])
+})
+
+test('AppController updates render preset through the view and public API', async () => {
+    const board = {
+        title: 'Tiny Board',
+        pads: [],
+        footprints: [],
+        drawings: [],
+        texts: [],
+        outlines: [],
+        bounds: {}
+    }
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'minimal.kicad_pcb' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+    view.changeRenderPreset('kicad')
+
+    assert.equal(state.getSnapshot().renderPreset, 'kicad')
+    assert.equal(renderer.lastOptions.renderPreset, 'kicad')
+
+    const publicState = controller.setRenderPreset('manual')
+    assert.equal(publicState.renderPreset, 'manual')
+    assert.equal(renderer.lastOptions.renderPreset, 'manual')
 })
 
 test('AppController updates render layer styles through state', async () => {
@@ -283,6 +357,47 @@ test('AppController exports and imports PCB Styler project archives', async () =
     assert.equal(snapshot.badgeStyle.scale, 1.5)
 })
 
+test('AppController exports Altium project archives from source bytes', async () => {
+    const board = {
+        kind: 'pcb',
+        fileType: 'PcbDoc',
+        fileName: 'amp.PcbDoc',
+        pcb: { components: [], pads: [], boardOutline: {} }
+    }
+    const sourceBytes = new Uint8Array([1, 2, 3, 4])
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState()
+    const loader = {
+        async loadFiles(files) {
+            assert.deepEqual(files, ['altium-file'])
+            return {
+                board,
+                sourceFileName: 'amp.PcbDoc',
+                sourceBytes,
+                sourceFormat: 'altium'
+            }
+        }
+    }
+    const controller = new AppController({ state, view, loader, renderer })
+
+    await controller.init()
+    await view.openFiles(['altium-file'])
+    view.toggleComponent('altium:U1')
+    view.exportProject()
+
+    const [kind, bytes, fileName] = view.downloads[0]
+    const entries = unzipSync(bytes)
+    const settings = JSON.parse(strFromU8(entries['settings.json']))
+
+    assert.equal(kind, 'project')
+    assert.equal(fileName, 'amp-project.zip')
+    assert.deepEqual([...entries['amp.PcbDoc']], [...sourceBytes])
+    assert.equal(settings.sourceFormat, 'altium')
+    assert.equal(settings.pcbFileName, 'amp.PcbDoc')
+    assert.deepEqual(settings.settings.highlightedFootprints, ['altium:U1'])
+})
+
 test('AppController toggles and styles component highlights', async () => {
     const board = {
         title: 'Tiny Board',
@@ -331,6 +446,106 @@ test('AppController toggles and styles component highlights', async () => {
     view.clearHighlights()
     snapshot = state.getSnapshot()
     assert.deepEqual(snapshot.highlightedFootprints, [])
+})
+
+test('AppController exposes hovered KiCad component information', async () => {
+    const board = {
+        title: 'Tiny Board',
+        pads: [],
+        footprints: [
+            {
+                id: 'footprint:U1:0',
+                reference: 'U1',
+                value: 'MCU',
+                description: 'Main controller',
+                footprint: 'Package_QFP:TQFP-44',
+                side: 'front'
+            }
+        ],
+        drawings: [],
+        texts: [],
+        outlines: [],
+        bounds: {}
+    }
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'tiny.kicad_pcb' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+    view.hoverComponent('footprint:U1:0')
+
+    assert.deepEqual(controller.getPublicState().hoveredComponent, {
+        id: 'footprint:U1:0',
+        reference: 'U1',
+        side: 'front',
+        value: 'MCU',
+        description: 'Main controller',
+        package: 'Package_QFP:TQFP-44',
+        sourceFormat: 'KiCad'
+    })
+})
+
+test('AppController exposes hovered Altium component information', async () => {
+    const board = {
+        kind: 'pcb',
+        fileType: 'PcbDoc',
+        fileName: 'amp.PcbDoc',
+        pcb: {
+            components: [
+                {
+                    designator: 'U3',
+                    comment: 'Op amp',
+                    description: 'Audio amplifier',
+                    pattern: 'SOIC-8',
+                    layer: 'Bottom'
+                }
+            ],
+            pads: [],
+            boardOutline: {}
+        }
+    }
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'amp.PcbDoc' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+    view.hoverComponent('altium:U3')
+
+    assert.deepEqual(controller.getPublicState().hoveredComponent, {
+        id: 'altium:U3',
+        reference: 'U3',
+        side: 'back',
+        value: 'Op amp',
+        description: 'Audio amplifier',
+        package: 'SOIC-8',
+        sourceFormat: 'Altium'
+    })
+})
+
+test('AppController exposes unknown hovered footprint ids', async () => {
+    const board = {
+        title: 'Tiny Board',
+        pads: [],
+        footprints: [],
+        drawings: [],
+        texts: [],
+        outlines: [],
+        bounds: {}
+    }
+    const view = new FakeView()
+    const renderer = new FakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'tiny.kicad_pcb' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+    view.hoverComponent('footprint:Missing:9')
+
+    assert.deepEqual(controller.getPublicState().hoveredComponent, {
+        id: 'footprint:Missing:9',
+        sourceFormat: 'KiCad'
+    })
 })
 
 test('AppController creates, edits, moves, and removes badges', async () => {
@@ -396,7 +611,7 @@ class FakeRenderer {
 
     /**
      * @param {object | null} _board
-     * @param {{ side: string, layerStyles: object }} options
+     * @param {{ side: string, renderPreset?: string, layerStyles: object }} options
      * @returns {string}
      */
     render(_board, options) {
@@ -410,6 +625,7 @@ class FakeView {
         this.lastSvg = ''
         this.openFiles = () => {}
         this.changeSide = () => {}
+        this.changeRenderPreset = () => {}
         this.changeLayerStyle = () => {}
         this.toggleComponent = () => {}
         this.hoverComponent = () => {}
@@ -439,6 +655,13 @@ class FakeView {
      */
     bindSideChange(callback) {
         this.changeSide = callback
+    }
+
+    /**
+     * @param {(preset: string) => void} callback
+     */
+    bindRenderPresetChange(callback) {
+        this.changeRenderPreset = callback
     }
 
     /**

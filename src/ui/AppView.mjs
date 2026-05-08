@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { RenderPalette } from '@sunbox/kicad-toolkit'
+import { RenderPalette } from './RenderPalette.mjs'
 import { BadgeControls } from './BadgeControls.mjs'
-
 /**
  * DOM rendering and event binding helper.
  */
@@ -30,6 +29,9 @@ export class AppView {
     #colorControlsNode
 
     /** @type {HTMLElement | null} */
+    #renderPresetControlsNode
+
+    /** @type {HTMLElement | null} */
     #canvasNode
 
     /** @type {HTMLButtonElement | null} */
@@ -49,6 +51,9 @@ export class AppView {
 
     /** @type {HTMLElement | null} */
     #highlightSummaryNode
+
+    /** @type {HTMLElement | null} */
+    #hoveredComponentInfoNode
 
     /** @type {BadgeControls} */
     #badgeControls
@@ -71,6 +76,9 @@ export class AppView {
         this.#colorControlsNode = this.#document.querySelector(
             '#layerColorControls'
         )
+        this.#renderPresetControlsNode = this.#document.querySelector(
+            '#renderPresetControls'
+        )
         this.#canvasNode = this.#document.querySelector('#pcbCanvas')
         this.#exportSvgButton = this.#document.querySelector('#exportSvgButton')
         this.#exportPngButton = this.#document.querySelector('#exportPngButton')
@@ -85,6 +93,9 @@ export class AppView {
         )
         this.#highlightSummaryNode =
             this.#document.querySelector('#highlightSummary')
+        this.#hoveredComponentInfoNode = this.#document.querySelector(
+            '#hoveredComponentInfo'
+        )
         this.#badgeControls = new BadgeControls(this.#document, {
             canvasNode: this.#canvasNode,
             addButton: this.#document.querySelector('#addBadgeButton'),
@@ -96,7 +107,7 @@ export class AppView {
 
     /**
      * Renders the current app state and SVG.
-     * @param {{ board: object | null, sourceFileName: string, boardSource?: string, side: string, layerStyles?: Record<string, object>, highlightedFootprints?: readonly string[], highlightColor?: string, badges?: readonly object[], badgeStyle?: object }} snapshot
+     * @param {{ board: object | null, sourceFileName: string, boardSource?: string, sourceBytes?: Uint8Array | null, side: string, renderPreset?: string, layerStyles?: Record<string, object>, highlightedFootprints?: readonly string[], highlightColor?: string, hoveredComponent?: object | null, badges?: readonly object[], badgeStyle?: object }} snapshot
      * @param {string} svg
      * @returns {void}
      */
@@ -108,12 +119,14 @@ export class AppView {
         }
         this.#renderSummary(snapshot.board)
         this.#renderSide(snapshot.side)
+        this.#renderRenderPreset(snapshot.renderPreset)
         this.#renderLayerStyles(snapshot.layerStyles)
         this.#renderHighlightState(snapshot)
+        this.#renderHoveredComponentInfo(snapshot.hoveredComponent)
         this.#badgeControls.render(snapshot)
         this.#renderExportState(
             Boolean(snapshot.board),
-            Boolean(snapshot.boardSource)
+            Boolean(snapshot.boardSource || snapshot.sourceBytes?.byteLength)
         )
     }
 
@@ -145,6 +158,12 @@ export class AppView {
             if (this.#fileInput?.files) callback(this.#fileInput.files)
         })
 
+        this.#canvasNode?.addEventListener('click', () => {
+            if (this.#canvasNode?.querySelector('.pcb-svg--empty')) {
+                this.#fileInput?.click()
+            }
+        })
+
         this.#canvasNode?.addEventListener('dragover', (event) => {
             event.preventDefault()
             this.#canvasNode?.classList.add('is-dragging')
@@ -172,6 +191,23 @@ export class AppView {
                 callback(button.getAttribute('data-side') || 'front')
             })
         })
+    }
+
+    /**
+     * Binds render style preset buttons.
+     * @param {(preset: string) => void} callback
+     * @returns {void}
+     */
+    bindRenderPresetChange(callback) {
+        this.#renderPresetControlsNode
+            ?.querySelectorAll('[data-render-preset]')
+            .forEach((button) => {
+                button.addEventListener('click', () => {
+                    callback(
+                        button.getAttribute('data-render-preset') || 'manual'
+                    )
+                })
+            })
     }
 
     /**
@@ -406,9 +442,9 @@ export class AppView {
             return
         }
         this.#summaryNode.innerHTML = [
-            `<span>Footprints: ${board.footprints.length}</span>`,
-            `<span>Pads: ${board.pads.length}</span>`,
-            `<span>Outline: ${board.outlines.length ? 'yes' : 'none'}</span>`
+            `<span>Footprints: ${boardFootprintCount(board)}</span>`,
+            `<span>Pads: ${boardPadCount(board)}</span>`,
+            `<span>Outline: ${boardHasOutline(board) ? 'yes' : 'none'}</span>`
         ].join('')
     }
 
@@ -424,6 +460,25 @@ export class AppView {
                 button.getAttribute('data-side') === side ? 'true' : 'false'
             )
         })
+    }
+
+    /**
+     * Updates render preset toggle pressed state.
+     * @param {string | undefined} preset
+     * @returns {void}
+     */
+    #renderRenderPreset(preset) {
+        const resolved = preset === 'kicad' ? 'kicad' : 'manual'
+        this.#renderPresetControlsNode
+            ?.querySelectorAll('[data-render-preset]')
+            .forEach((button) => {
+                button.setAttribute(
+                    'aria-pressed',
+                    button.getAttribute('data-render-preset') === resolved
+                        ? 'true'
+                        : 'false'
+                )
+            })
     }
 
     /**
@@ -505,6 +560,62 @@ export class AppView {
                     ? 'No highlighted components'
                     : `${count} highlighted component${count === 1 ? '' : 's'}`
         }
+    }
+
+    /**
+     * Updates the hovered component information panel.
+     * @param {object | null | undefined} component
+     * @returns {void}
+     */
+    #renderHoveredComponentInfo(component) {
+        if (!this.#hoveredComponentInfoNode) return
+
+        const rows = component ? componentInfoRows(component) : []
+        if (rows.length === 0) {
+            this.#hoveredComponentInfoNode.replaceChildren(
+                this.#createComponentInfoEmptyState()
+            )
+            return
+        }
+
+        const list = this.#document.createElement('dl')
+        list.className = 'component-info-grid'
+        rows.forEach((row) => {
+            list.append(this.#createComponentInfoRow(row))
+        })
+        this.#hoveredComponentInfoNode.replaceChildren(list)
+    }
+
+    /**
+     * Creates the hovered component empty state.
+     * @returns {HTMLElement}
+     */
+    #createComponentInfoEmptyState() {
+        const node = this.#document.createElement('span')
+        node.className = 'component-info-empty'
+        node.textContent = 'Hover a component to inspect it.'
+        return node
+    }
+
+    /**
+     * Creates one hovered component information row.
+     * @param {{ label: string, value: string }} row
+     * @returns {HTMLElement}
+     */
+    #createComponentInfoRow(row) {
+        const group = this.#document.createElement('div')
+        group.className = 'component-info-row'
+
+        const label = this.#document.createElement('dt')
+        label.className = 'component-info-label'
+        label.textContent = row.label
+
+        const value = this.#document.createElement('dd')
+        value.className = 'component-info-value'
+        value.textContent = row.value
+
+        group.append(label, value)
+        return group
     }
 
     /**
@@ -745,6 +856,62 @@ function componentIdFromTarget(target) {
 
     const node = target.closest('[data-footprint-id]')
     return node?.getAttribute('data-footprint-id') || ''
+}
+
+/**
+ * Returns display rows for a hovered component info object.
+ * @param {object} component
+ * @returns {{ label: string, value: string }[]}
+ */
+function componentInfoRows(component) {
+    return [
+        ['Reference', component.reference],
+        ['Footprint id', component.id],
+        ['Side', component.side],
+        ['Value', component.value],
+        ['Description', component.description],
+        ['Package', component.package],
+        ['Source format', component.sourceFormat]
+    ]
+        .map(([label, value]) => ({
+            label,
+            value: String(value || '').trim()
+        }))
+        .filter((row) => row.value)
+}
+
+/**
+ * Returns the displayed footprint count for a board model.
+ * @param {object} board
+ * @returns {number}
+ */
+function boardFootprintCount(board) {
+    if (Array.isArray(board.footprints)) return board.footprints.length
+    if (Array.isArray(board.pcb?.components)) return board.pcb.components.length
+    return 0
+}
+
+/**
+ * Returns the displayed pad count for a board model.
+ * @param {object} board
+ * @returns {number}
+ */
+function boardPadCount(board) {
+    if (Array.isArray(board.pads)) return board.pads.length
+    if (Array.isArray(board.pcb?.pads)) return board.pcb.pads.length
+    return 0
+}
+
+/**
+ * Returns whether the board has outline geometry.
+ * @param {object} board
+ * @returns {boolean}
+ */
+function boardHasOutline(board) {
+    if (Array.isArray(board.outlines)) return board.outlines.length > 0
+    return Array.isArray(board.pcb?.boardOutline?.segments)
+        ? board.pcb.boardOutline.segments.length > 0
+        : false
 }
 
 /**

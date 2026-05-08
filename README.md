@@ -5,35 +5,54 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # PCB Styler
 
-Browser-based KiCad PCB assembly-view renderer for `.kicad_pcb` files and KiCad project `.zip` archives.
+Browser-based PCB styler and assembly-view renderer with first-class support
+for KiCad `.kicad_pcb` boards, Altium `.PcbDoc` boards, and PCB project `.zip`
+archives containing either format.
 
 Live app: [https://pcb-styler.app/](https://pcb-styler.app/).
 
 ## Features
 
+- Supported EDA inputs: KiCad `.kicad_pcb`, Altium `.PcbDoc`, KiCad project
+  ZIP archives, Altium ZIP archives containing `.PcbDoc`, and PCB Styler
+  project ZIP archives that preserve the original board source
 - Client-side KiCad S-expression parsing for `.kicad_pcb` files through
-  `@sunbox/kicad-toolkit`
-- ZIP project loading with automatic board-file discovery
-- PCB Styler project ZIP export/import with the PCB source and JSON settings
-- Manual-style SVG PCB rendering with black board fill, grey pads, grey silkscreen, routed copper, vias, zones, and drill holes
-- Front/back side switching with KiCad-style backside mirroring
-- Per-layer visibility, fill color, fill transparency, border color, and border-thickness controls that apply to preview, SVG export, and transparent PNG export
+  `kicad-toolkit`
+- Client-side Altium `.PcbDoc` parsing through `altium-toolkit`
+- ZIP project loading with automatic KiCad or Altium board-file discovery
+- PCB Styler project ZIP export/import with KiCad or Altium board source and
+  JSON settings
+- Manual-style SVG PCB rendering with black board fill, grey pads, grey
+  silkscreen, and a clean assembly-focused default that hides routed copper,
+  zones, vias, and via drill holes until those layers are enabled
+- KiCad preview render preset with KiCad-like dark canvas, copper, pad, via,
+  drill, and silkscreen colors for full-detail KiCad board inspection
+- Altium PCB SVG rendering from direct `.PcbDoc` files or ZIP-contained
+  `.PcbDoc` files
+- Front/back side switching with KiCad-style backside mirroring for KiCad boards
+- Per-layer visibility, fill color, fill transparency, border color, and
+  border-thickness controls that apply to KiCad and Altium preview, SVG export,
+  and transparent PNG export
 - Right-side annotation sidebar for component highlights, movable text/number badges, and exports
 - Click and hover component highlighting with a user-selectable highlight color
+  and fixed sidebar details for the hovered component
 - Badges include configurable text/border color, scale, drop shadow, per-badge rotation, and automatic pill shapes for longer labels
-- SVG, transparent-background PNG, and portable project ZIP export
-- Early WebMCP tool registration for agent-assisted state inspection, styling, highlights, badges, SVG export, and transparent PNG export in supported browsers
+- SVG and transparent-background PNG export for loaded boards; portable
+  project ZIP export for KiCad and Altium source-backed boards
+- Early WebMCP tool registration for agent-assisted state inspection, render preset changes, styling, highlights, badges, SVG export, and transparent PNG export in supported browsers
 - Integrated imprint footer with contact, version, GitHub, and Mastodon links
 - Local Express dev server in `src/server.mjs`
 - Node test suite for app controller, state, integration bridge, and structure
-  checks; parser and renderer coverage lives in `@sunbox/kicad-toolkit`
+  checks; parser and renderer coverage lives in the toolkit packages
 
 ## Project Structure
 
-- `src/core/`: app state
-- `src/ui/`: DOM view and app controls
-- `@sunbox/kicad-toolkit`: KiCad parsing, project archive loading/export,
-  geometry, palette normalization, and SVG rendering
+- `src/core/`: app state and board loading
+- `src/ui/`: DOM view, app controls, and renderer routing
+- `kicad-toolkit`: KiCad parsing, ZIP board loading, geometry, stroke-font
+  primitives, and base SVG rendering
+- `altium-toolkit`: Altium `.PcbDoc` parsing and deterministic PCB SVG
+  rendering
 - `src/AppController.mjs`: app orchestration and export flow
 - `src/StaticDeployBuilder.mjs`: Apache/shared-hosting artifact builder
 - `scripts/build-static-deploy.mjs`: static deployment build wrapper

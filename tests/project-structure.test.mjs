@@ -54,12 +54,22 @@ test('required project files exist', async () => {
         'src/server.mjs',
         'src/ServerAssetVersioner.mjs',
         'src/StaticDeployBuilder.mjs',
+        'src/core/BoardFileLoader.mjs',
         'src/core/AppState.mjs',
+        'src/core/ProjectArchive.mjs',
         'src/integrations/WebMcpBridge.mjs',
+        'src/ui/BoardSvgRenderer.mjs',
+        'src/ui/AltiumPcbSvgRenderer.mjs',
         'src/ui/AppView.mjs',
         'src/ui/BadgeControls.mjs',
+        'src/ui/PcbSvgRendererDecorator.mjs',
+        'tests/board-toolkit.test.mjs',
         'tests/app-controller.test.mjs',
         'tests/app-state.test.mjs',
+        'tests/altium-app-renderer.test.mjs',
+        'tests/kicad-app-renderer.test.mjs',
+        'tests/pcb-svg-renderer-decorator.test.mjs',
+        'tests/project-archive.test.mjs',
         'tests/deploy-ftp-workflow.test.mjs',
         'tests/php-app-meta-endpoint.test.mjs',
         'tests/project-structure.test.mjs',
@@ -116,15 +126,42 @@ test('package scripts include start and test', async () => {
         'node scripts/build-static-deploy.mjs'
     )
     assert.equal(typeof pkg.scripts?.test, 'string')
-    assert.equal(typeof pkg.dependencies?.['@sunbox/kicad-toolkit'], 'string')
+    assert.equal(typeof pkg.dependencies?.['kicad-toolkit'], 'string')
+    assert.equal(
+        Object.keys(pkg.dependencies || {}).some((name) =>
+            name.startsWith('@sunbox/')
+        ),
+        false
+    )
+    assert.equal(typeof pkg.dependencies?.['altium-toolkit'], 'string')
 })
 
 /**
- * Verifies KiCad parser and renderer internals are provided by the toolkit.
+ * Verifies parser and renderer internals are provided by toolkit packages.
  */
-test('app imports KiCad parsing and rendering from kicad-toolkit', async () => {
+test('app imports PCB parsing and rendering from toolkit packages', async () => {
     const controller = await readFile(
         new URL('src/AppController.mjs', root),
+        'utf8'
+    )
+    const boardLoader = await readFile(
+        new URL('src/core/BoardFileLoader.mjs', root),
+        'utf8'
+    )
+    const boardRenderer = await readFile(
+        new URL('src/ui/BoardSvgRenderer.mjs', root),
+        'utf8'
+    )
+    const altiumRenderer = await readFile(
+        new URL('src/ui/AltiumPcbSvgRenderer.mjs', root),
+        'utf8'
+    )
+    const kicadRenderer = await readFile(
+        new URL('src/ui/KicadPcbSvgRenderer.mjs', root),
+        'utf8'
+    )
+    const decorator = await readFile(
+        new URL('src/ui/PcbSvgRendererDecorator.mjs', root),
         'utf8'
     )
     const state = await readFile(new URL('src/core/AppState.mjs', root), 'utf8')
@@ -133,11 +170,40 @@ test('app imports KiCad parsing and rendering from kicad-toolkit', async () => {
         new URL('src/ui/BadgeControls.mjs', root),
         'utf8'
     )
+    const viewSource = await readFile(
+        new URL('src/ui/AppView.mjs', root),
+        'utf8'
+    )
 
-    assert.match(controller, /from '@sunbox\/kicad-toolkit'/)
-    assert.match(state, /from '@sunbox\/kicad-toolkit'/)
-    assert.match(view, /from '@sunbox\/kicad-toolkit'/)
-    assert.match(badgeControls, /from '@sunbox\/kicad-toolkit'/)
+    assert.match(controller, /BoardFileLoader/)
+    assert.match(controller, /BoardSvgRenderer/)
+    assert.match(controller, /from '\.\/core\/ProjectArchive\.mjs'/)
+    assert.doesNotMatch(controller, /from 'kicad-toolkit\/parser'/)
+    assert.match(boardLoader, /from 'kicad-toolkit\/parser'/)
+    assert.match(boardLoader, /from 'altium-toolkit\/parser'/)
+    assert.match(boardLoader, /from '\.\/ProjectArchive\.mjs'/)
+    assert.match(boardRenderer, /from '\.\/KicadPcbSvgRenderer\.mjs'/)
+    assert.match(boardRenderer, /from '\.\/AltiumPcbSvgRenderer\.mjs'/)
+    assert.match(altiumRenderer, /from 'altium-toolkit\/renderers'/)
+    assert.match(altiumRenderer, /from '\.\/PcbSvgRendererDecorator\.mjs'/)
+    assert.match(kicadRenderer, /from 'kicad-toolkit\/renderers'/)
+    assert.match(kicadRenderer, /from 'kicad-toolkit\/parser'/)
+    assert.match(kicadRenderer, /from '\.\/PcbSvgRendererDecorator\.mjs'/)
+    assert.match(decorator, /from '\.\/RenderPalette\.mjs'/)
+    assert.match(decorator, /from '\.\/BadgeRenderer\.mjs'/)
+    assert.match(decorator, /from '\.\/ComponentHighlight\.mjs'/)
+    assert.match(state, /from '\.\.\/ui\/BadgeStyle\.mjs'/)
+    assert.match(state, /from '\.\.\/ui\/RenderPalette\.mjs'/)
+    assert.match(view, /from '\.\/RenderPalette\.mjs'/)
+    assert.match(badgeControls, /from '\.\/BadgeStyle\.mjs'/)
+    assert.equal(await exists('src/ui/BadgeRenderer.mjs'), true)
+    assert.equal(await exists('src/ui/BadgeStyle.mjs'), true)
+    assert.equal(await exists('src/ui/ComponentHighlight.mjs'), true)
+    assert.equal(await exists('src/ui/PcbSvgRendererDecorator.mjs'), true)
+    assert.equal(await exists('src/ui/AltiumPcbSvgRenderer.mjs'), true)
+    assert.equal(await exists('src/ui/KicadPcbSvgRenderer.mjs'), true)
+    assert.equal(await exists('src/ui/RenderPalette.mjs'), true)
+    assert.equal(await exists('src/core/ProjectArchive.mjs'), true)
     assert.equal(await exists('src/core/KicadPcbParser.mjs'), false)
     assert.equal(await exists('src/ui/PcbSvgRenderer.mjs'), false)
     assert.equal(await exists('tests/kicad-pcb-parser.test.mjs'), false)
@@ -152,12 +218,13 @@ test('project folder is named pcb_styler_app', () => {
 })
 
 /**
- * Verifies the topbar file picker labels board and project archives.
+ * Verifies the topbar file picker labels supported board and project inputs.
  */
-test('topbar open button names board and project files', async () => {
+test('topbar open button names KiCad Altium and project files', async () => {
     const source = await readFile(new URL('src/index.html', root), 'utf8')
 
-    assert.match(source, />\s*Open Board or Project file\s*</)
+    assert.match(source, />\s*Open KiCad, Altium, or Project ZIP\s*</)
+    assert.match(source, /accept="[^"]*\.PcbDoc/)
     assert.doesNotMatch(source, />\s*Open KiCad file\s*</)
 })
 
@@ -178,7 +245,10 @@ test('project uses the PCB Styler name', async () => {
 
     assert.equal(pkg.name, 'pcb-styler')
     assert.match(pkg.description, /PCB styler/i)
-    assert.match(indexSource, /<title>PCB Styler<\/title>/)
+    assert.match(
+        indexSource,
+        /<title>PCB Styler - KiCad and Altium PCB Assembly Views<\/title>/
+    )
     assert.match(indexSource, /<h1>PCB Styler<\/h1>/)
     assert.match(readme, /^# PCB Styler/m)
     assert.match(spec, /^# PCB Styler Specification/m)
@@ -212,6 +282,18 @@ test('center PCB canvas is the board drop target', async () => {
 })
 
 /**
+ * Verifies the empty canvas advertises clickability.
+ */
+test('empty PCB canvas shows the click cursor', async () => {
+    const styles = await readFile(
+        new URL('src/styles/10-layout.css', root),
+        'utf8'
+    )
+
+    assert.match(styles, /\.pcb-svg--empty\s*\{[^}]*cursor:\s*pointer;/s)
+})
+
+/**
  * Verifies transparency is exposed as a single slider control.
  */
 test('layer transparency controls use only the range slider', async () => {
@@ -232,6 +314,10 @@ test('annotation and export controls render in a right sidebar', async () => {
         new URL('src/ui/BadgeControls.mjs', root),
         'utf8'
     )
+    const viewSource = await readFile(
+        new URL('src/ui/AppView.mjs', root),
+        'utf8'
+    )
     const styles = await readFile(
         new URL('src/styles/10-layout.css', root),
         'utf8'
@@ -243,12 +329,28 @@ test('annotation and export controls render in a right sidebar', async () => {
         styles,
         /grid-template-columns:\s*minmax\(\s*260px,\s*320px\s*\)\s+minmax\(\s*0,\s*1fr\s*\)\s+minmax\(\s*260px,\s*320px\s*\)/
     )
+    const hoveredIndex = rightPanel.indexOf('aria-label="Hovered component"')
+    const projectZipIndex = rightPanel.indexOf('Project ZIP')
+    const componentInfoStyles = extractCssBlock(styles, '.component-info')
+
     assert.doesNotMatch(leftPanel, /aria-label="Component highlights"/)
     assert.doesNotMatch(leftPanel, /aria-label="Badges"/)
     assert.doesNotMatch(leftPanel, /aria-label="Export"/)
+    assert.notEqual(hoveredIndex, -1)
+    assert.notEqual(projectZipIndex, -1)
+    assert.ok(projectZipIndex < hoveredIndex)
     assert.match(rightPanel, /aria-label="Component highlights"/)
+    assert.match(rightPanel, /aria-label="Hovered component"/)
+    assert.match(rightPanel, /id="hoveredComponentInfo"/)
     assert.match(rightPanel, /aria-label="Badges"/)
     assert.match(rightPanel, /aria-label="Export"/)
+    assert.match(viewSource, /#hoveredComponentInfoNode/)
+    assert.match(viewSource, /#renderHoveredComponentInfo/)
+    assert.match(viewSource, /createElement\('dt'\)/)
+    assert.match(viewSource, /createElement\('dd'\)/)
+    assert.match(componentInfoStyles, /border:\s*1px solid var\(--border\)/)
+    assert.match(componentInfoStyles, /background:\s*var\(--surface-strong\)/)
+    assert.match(componentInfoStyles, /border-radius:\s*var\(--radius\)/)
     assert.match(badgeControls, /data-badge-field'\)\s*!==\s*'rotation'/)
     assert.match(badgeControls, /Badge rotation/)
     assert.match(rightPanel, /id="exportProjectButton"/)

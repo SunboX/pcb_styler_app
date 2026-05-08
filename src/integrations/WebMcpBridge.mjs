@@ -8,7 +8,8 @@ const layerKeys = [
     'traces',
     'zones',
     'vias',
-    'drills',
+    'padDrills',
+    'viaDrills',
     'silkscreen'
 ]
 
@@ -104,6 +105,26 @@ function createTools(controller) {
             },
             execute: (input) =>
                 controller.setSide(String(objectInput(input).side || 'front'))
+        },
+        {
+            name: 'pcb_styler_set_render_preset',
+            description:
+                'Switch the PCB renderer between manual colors and the KiCad preview color preset.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    preset: {
+                        type: 'string',
+                        enum: ['manual', 'kicad'],
+                        description: 'The render style preset to display.'
+                    }
+                },
+                required: ['preset']
+            },
+            execute: (input) =>
+                controller.setRenderPreset(
+                    String(objectInput(input).preset || 'manual')
+                )
         },
         {
             name: 'pcb_styler_set_layer_style',

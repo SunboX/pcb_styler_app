@@ -1,7 +1,7 @@
 {
     "name": "pcb-styler",
-    "version": "1.0.56",
-    "description": "Browser-based KiCad PCB styler and assembly-view renderer",
+    "version": "1.0.90",
+    "description": "Browser-based PCB styler with KiCad and Altium board support",
     "license": "AGPL-3.0-or-later",
     "private": true,
     "type": "module",
@@ -13,9 +13,10 @@
         "check:format": "prettier --check ."
     },
     "dependencies": {
-        "@sunbox/kicad-toolkit": "git+ssh://git@github.com/SunboX/kicad-toolkit.git",
+        "altium-toolkit": "0.1.1",
         "express": "^5.1.0",
-        "fflate": "^0.8.2"
+        "fflate": "^0.8.2",
+        "kicad-toolkit": "0.1.1"
     },
     "devDependencies": {
         "prettier": "^3.4.2"

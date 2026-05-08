@@ -5,15 +5,16 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # WebMCP Integration
 
-PCB Styler includes an early WebMCP integration for browsers that expose `navigator.modelContext`. The integration is feature-detected at startup and does nothing in browsers where the API is unavailable.
+PCB Styler includes an early WebMCP integration for browsers that expose `navigator.modelContext`. The integration works with the active KiCad or Altium board already loaded in the UI, is feature-detected at startup, and does nothing in browsers where the API is unavailable.
 
 The app uses the imperative WebMCP shape from the proposal: `navigator.modelContext.registerTool(tool, { signal })`. Tool definitions include `name`, `description`, `inputSchema`, optional `annotations`, and an `execute` callback wired to the same controller actions as the human UI.
 
 ## Registered Tools
 
-- `pcb_styler_get_state`: returns board metadata, side, layer styles, highlighted footprints, highlight color, badges, badge style, and available footprint ids.
+- `pcb_styler_get_state`: returns board metadata, side, render preset, layer styles, highlighted footprints, highlight color, badges, badge style, and available footprint ids.
 - `pcb_styler_set_side`: switches between front and back.
-- `pcb_styler_set_layer_style`: updates layer visibility, fill color, fill opacity, border color, or border width.
+- `pcb_styler_set_render_preset`: switches between the manual color controls and the KiCad preview preset.
+- `pcb_styler_set_layer_style`: updates layer visibility, fill color, fill opacity, border color, or border width. Supported layer keys include `padDrills` and `viaDrills` for independently styling physical drill holes.
 - `pcb_styler_set_highlight_color`: changes the persistent highlight color.
 - `pcb_styler_toggle_component_highlight`: toggles a footprint highlight by id.
 - `pcb_styler_clear_highlights`: removes all persistent highlights.
