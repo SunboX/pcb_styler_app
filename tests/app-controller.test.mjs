@@ -118,6 +118,40 @@ test('AppController toggles side through state', async () => {
     assert.match(view.lastSvg, /data-side="back"/)
 })
 
+test('AppController renders UI updates through the async renderer when available', async () => {
+    const board = {
+        title: 'Tiny Board',
+        pads: [],
+        footprints: [],
+        drawings: [],
+        texts: [],
+        outlines: [],
+        bounds: {}
+    }
+    const view = new FakeView()
+    const renderer = new AsyncFakeRenderer()
+    const state = new AppState({ board, sourceFileName: 'minimal.kicad_pcb' })
+    const controller = new AppController({ state, view, renderer })
+
+    await controller.init()
+    assert.equal(renderer.syncRenderCount, 0)
+    assert.equal(renderer.requests.length, 1)
+    assert.equal(view.lastSvg, '')
+
+    view.changeSide('back')
+    assert.equal(renderer.syncRenderCount, 0)
+    assert.equal(renderer.requests.length, 2)
+    assert.equal(view.lastSvg, '')
+
+    renderer.resolveRequest(0)
+    await renderer.settled()
+    assert.equal(view.lastSvg, '')
+
+    renderer.resolveRequest(1)
+    await renderer.settled()
+    assert.match(view.lastSvg, /data-side="back"/)
+})
+
 test('AppController exposes agent-safe WebMCP actions', async () => {
     const board = {
         title: 'Tiny Board',
@@ -617,6 +651,60 @@ class FakeRenderer {
     render(_board, options) {
         this.lastOptions = options
         return `<svg data-side="${options.side}"></svg>`
+    }
+}
+
+class AsyncFakeRenderer extends FakeRenderer {
+    constructor() {
+        super()
+        this.requests = []
+        this.syncRenderCount = 0
+    }
+
+    /**
+     * Fails the test if UI updates call the blocking render path.
+     * @param {object | null} board
+     * @param {object} options
+     * @returns {string}
+     */
+    render(board, options) {
+        this.syncRenderCount += 1
+        return super.render(board, options)
+    }
+
+    /**
+     * Captures pending async render requests.
+     * @param {object | null} _board
+     * @param {{ side: string }} options
+     * @returns {Promise<string>}
+     */
+    renderAsync(_board, options) {
+        this.lastOptions = options
+        const request = {}
+        request.promise = new Promise((resolve) => {
+            request.resolve = () =>
+                resolve(`<svg data-side="${options.side}"></svg>`)
+        })
+        this.requests.push(request)
+        return request.promise
+    }
+
+    /**
+     * Resolves one pending render request.
+     * @param {number} index
+     * @returns {void}
+     */
+    resolveRequest(index) {
+        this.requests[index].resolve()
+    }
+
+    /**
+     * Waits for pending promise callbacks to run.
+     * @returns {Promise<void>}
+     */
+    async settled() {
+        await Promise.resolve()
+        await Promise.resolve()
     }
 }
 

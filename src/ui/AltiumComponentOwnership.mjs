@@ -18,6 +18,13 @@ import {
     connectorProfile,
     isConnectorComponent
 } from './AltiumConnectorOwnership.mjs'
+import {
+    buildComponentOwnershipIndexes,
+    componentDetailCandidates,
+    exactPadBoundsCandidates,
+    exactPadCloudCandidates,
+    expandedPadBoundsCandidates
+} from './AltiumComponentOwnershipIndex.mjs'
 import { isCopperPrimitive } from './AltiumPcbRenderModel.mjs'
 import { PcbSvgRendererDecorator } from './PcbSvgRendererDecorator.mjs'
 
@@ -70,11 +77,14 @@ export function componentOwnerForBounds(
     const expandedPadBounds =
         componentPadBounds?.expanded || componentPadBounds || new Map()
 
-    components.forEach((component, index) => {
-        const footprintId = componentFootprintId(component, index)
+    componentDetailCandidates(
+        bounds,
+        components,
+        componentPadBounds,
+        componentFootprintId,
+        componentDetailBounds
+    ).forEach(({ component, index, footprintId, bounds: detailBounds }) => {
         if (expandedPadBounds.has(footprintId)) return
-
-        const detailBounds = componentDetailBounds(component)
         if (!boundsIntersect(bounds, detailBounds)) return
 
         const distance = squaredDistance(boundsCenter(bounds), {
@@ -123,14 +133,14 @@ function componentOwnerForPadBounds(bounds, components, componentPadBounds) {
     const exactOwner = componentOwnerForExactPadBounds(
         bounds,
         components,
-        componentPadBounds?.exact
+        componentPadBounds
     )
     if (exactOwner) return exactOwner
 
     const edgeOwner = componentOwnerForPadCloudEdgeBounds(
         bounds,
         components,
-        componentPadBounds?.exact
+        componentPadBounds
     )
     if (edgeOwner) return edgeOwner
 
@@ -153,32 +163,34 @@ function componentOwnerForExactPadBounds(
     components,
     componentPadBounds
 ) {
-    if (!componentPadBounds?.size) return null
+    const exactPadBounds = componentPadBounds?.exact || componentPadBounds
+    if (!exactPadBounds?.size) return null
 
     let best = null
     let bestArea = 0
     let bestDistance = Number.POSITIVE_INFINITY
 
-    components.forEach((component, index) => {
-        const footprintId = componentFootprintId(component, index)
-        const padBoundsList = componentPadBounds.get(footprintId) || []
-        padBoundsList.forEach((candidateBounds) => {
-            const overlapArea = boundsOverlapArea(bounds, candidateBounds)
-            if (overlapArea <= 0) return
+    exactPadBoundsCandidates(
+        bounds,
+        components,
+        componentPadBounds,
+        componentFootprintId
+    ).forEach(({ component, index, bounds: candidateBounds }) => {
+        const overlapArea = boundsOverlapArea(bounds, candidateBounds)
+        if (overlapArea <= 0) return
 
-            const distance = squaredDistance(
-                boundsCenter(bounds),
-                boundsCenter(candidateBounds)
-            )
-            if (
-                overlapArea > bestArea ||
-                (overlapArea === bestArea && distance < bestDistance)
-            ) {
-                best = { component, index }
-                bestArea = overlapArea
-                bestDistance = distance
-            }
-        })
+        const distance = squaredDistance(
+            boundsCenter(bounds),
+            boundsCenter(candidateBounds)
+        )
+        if (
+            overlapArea > bestArea ||
+            (overlapArea === bestArea && distance < bestDistance)
+        ) {
+            best = { component, index }
+            bestArea = overlapArea
+            bestDistance = distance
+        }
     })
 
     return best
@@ -201,14 +213,18 @@ function componentOwnerForPadCloudEdgeBounds(
     components,
     componentPadBounds
 ) {
-    if (!componentPadBounds?.size) return null
+    const exactPadBounds = componentPadBounds?.exact || componentPadBounds
+    if (!exactPadBounds?.size) return null
 
     let best = null
     let bestDistance = Number.POSITIVE_INFINITY
 
-    components.forEach((component, index) => {
-        const footprintId = componentFootprintId(component, index)
-        const padBoundsList = componentPadBounds.get(footprintId) || []
+    exactPadCloudCandidates(
+        bounds,
+        components,
+        componentPadBounds,
+        componentFootprintId
+    ).forEach(({ component, index, padBoundsList }) => {
         if (!padBoundsList.length) return
         if (!hasCompatibleEdgeMarkerStroke(bounds, padBoundsList)) return
 
@@ -286,9 +302,12 @@ function componentOwnerForExpandedPadBounds(
     let best = null
     let bestDistance = Number.POSITIVE_INFINITY
 
-    components.forEach((component, index) => {
-        const footprintId = componentFootprintId(component, index)
-        const padBounds = componentPadBounds.get(footprintId)
+    expandedPadBoundsCandidates(
+        bounds,
+        components,
+        componentPadBounds,
+        componentFootprintId
+    ).forEach(({ component, index, bounds: padBounds }) => {
         if (!padBounds || !boundsIntersect(bounds, padBounds)) return
 
         const distance = squaredDistance(boundsCenter(bounds), {
@@ -456,12 +475,20 @@ export function buildComponentVisualBounds(components, pcb) {
 export function buildComponentPadOwnershipBounds(pads, components) {
     const exact = new Map()
     addOwnedPadBounds(exact, pads, components)
+    const expanded = expandOwnedBoundsMap(
+        exact,
+        FOOTPRINT_OWNERSHIP_PADDING,
+        components
+    )
     return {
         exact,
-        expanded: expandOwnedBoundsMap(
+        expanded,
+        ...buildComponentOwnershipIndexes(
             exact,
-            FOOTPRINT_OWNERSHIP_PADDING,
-            components
+            expanded,
+            components,
+            componentFootprintId,
+            componentDetailBounds
         )
     }
 }

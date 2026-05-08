@@ -18,8 +18,14 @@ export class AppController {
     /** @type {{ loadFiles: (files: FileList | File[]) => Promise<{ board: object, sourceFileName: string, sourceText?: string, sourceBytes?: Uint8Array | null, projectSettings?: object | null, sourceFormat?: string }> }} */
     #loader
 
-    /** @type {{ render: (board: object | null, options: { side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }) => string }} */
+    /** @type {{ render: (board: object | null, options: object) => string, renderAsync?: (board: object | null, options: object) => Promise<string> }} */
     #renderer
+
+    /** @type {number} */
+    #renderSequence
+
+    /** @type {string} */
+    #lastSvg
 
     /**
      * @param {{
@@ -34,6 +40,8 @@ export class AppController {
         this.#view = dependencies.view
         this.#loader = dependencies.loader || new BoardFileLoader()
         this.#renderer = dependencies.renderer || new BoardSvgRenderer()
+        this.#renderSequence = 0
+        this.#lastSvg = ''
     }
 
     /**
@@ -42,10 +50,7 @@ export class AppController {
      */
     async init() {
         this.#state.subscribe((snapshot) => {
-            this.#view.render(
-                enrichViewSnapshot(snapshot),
-                this.#renderSvg(snapshot)
-            )
+            this.#renderViewSnapshot(snapshot)
             this.#view.setStatus(snapshot.status)
         })
 
@@ -525,16 +530,80 @@ export class AppController {
      * @returns {string}
      */
     #renderSvg(snapshot) {
-        return this.#renderer.render(snapshot.board, {
-            side: snapshot.side,
-            renderPreset: snapshot.renderPreset,
-            layerStyles: snapshot.layerStyles,
-            highlightedFootprints: snapshot.highlightedFootprints,
-            hoveredFootprintId: snapshot.hoveredFootprintId,
-            highlightColor: snapshot.highlightColor,
-            badges: snapshot.badges,
-            badgeStyle: snapshot.badgeStyle
+        return this.#renderer.render(snapshot.board, renderOptions(snapshot))
+    }
+
+    /**
+     * Renders a state snapshot without blocking the UI when the renderer supports it.
+     * @param {{ board: object | null, side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }} snapshot
+     * @returns {void}
+     */
+    #renderViewSnapshot(snapshot) {
+        if (!this.#shouldRenderAsync(snapshot)) {
+            this.#lastSvg = this.#renderSvg(snapshot)
+            this.#view.render(enrichViewSnapshot(snapshot), this.#lastSvg)
+            return
+        }
+
+        const sequence = ++this.#renderSequence
+        this.#view.render(enrichViewSnapshot(snapshot), this.#lastSvg)
+        this.#renderSvgAsync(snapshot, sequence).catch((error) => {
+            if (sequence !== this.#renderSequence) return
+
+            this.#view.setStatus(
+                error instanceof Error ? error.message : 'PCB render failed.'
+            )
         })
+    }
+
+    /**
+     * Returns whether the current board should use async rendering.
+     * @param {{ board: object | null }} snapshot
+     * @returns {boolean}
+     */
+    #shouldRenderAsync(snapshot) {
+        return Boolean(
+            snapshot.board && typeof this.#renderer.renderAsync === 'function'
+        )
+    }
+
+    /**
+     * Renders SVG asynchronously and applies only the newest completed result.
+     * @param {{ board: object | null, side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }} snapshot
+     * @param {number} sequence
+     * @returns {Promise<void>}
+     */
+    async #renderSvgAsync(snapshot, sequence) {
+        const renderAsync = this.#renderer.renderAsync
+        if (typeof renderAsync !== 'function') return
+
+        const svg = await renderAsync.call(
+            this.#renderer,
+            snapshot.board,
+            renderOptions(snapshot)
+        )
+        if (sequence !== this.#renderSequence) return
+
+        this.#lastSvg = svg
+        this.#view.render(enrichViewSnapshot(snapshot), svg)
+    }
+}
+
+/**
+ * Builds renderer options from an app state snapshot.
+ * @param {{ side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }} snapshot
+ * @returns {{ side: string, renderPreset?: string, layerStyles: Record<string, object>, highlightedFootprints: readonly string[], hoveredFootprintId: string, highlightColor: string, badges: readonly object[], badgeStyle: object }}
+ */
+function renderOptions(snapshot) {
+    return {
+        side: snapshot.side,
+        renderPreset: snapshot.renderPreset,
+        layerStyles: snapshot.layerStyles,
+        highlightedFootprints: snapshot.highlightedFootprints,
+        hoveredFootprintId: snapshot.hoveredFootprintId,
+        highlightColor: snapshot.highlightColor,
+        badges: snapshot.badges,
+        badgeStyle: snapshot.badgeStyle
     }
 }
 

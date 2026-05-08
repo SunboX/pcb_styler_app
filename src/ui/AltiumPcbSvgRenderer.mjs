@@ -21,6 +21,7 @@ import {
     isCopperPrimitive,
     prepareAltiumRenderBoard
 } from './AltiumPcbRenderModel.mjs'
+import { AltiumKicadPreviewStyles } from './AltiumKicadPreviewStyles.mjs'
 import { injectSupplementalPrimitiveMarkup } from './AltiumSupplementalPrimitiveRenderer.mjs'
 import { wrapAltiumMarkup } from './AltiumSvgSceneWrapper.mjs'
 import { PcbSvgRendererDecorator } from './PcbSvgRendererDecorator.mjs'
@@ -75,11 +76,18 @@ export class AltiumPcbSvgRenderer {
                 )
             },
             afterLayerStyles(markup, _board, _options, context, helpers) {
-                return markup.replace(/<text\b[^>]*>/gu, (tag) =>
-                    helpers.applySvgStyle(tag, context.styles.silkscreen, {
-                        fill: true,
-                        stroke: false
-                    })
+                const textStyledMarkup = markup.replace(
+                    /<text\b[^>]*>/gu,
+                    (tag) =>
+                        helpers.applySvgStyle(tag, context.styles.silkscreen, {
+                            fill: true,
+                            stroke: false
+                        })
+                )
+                return AltiumKicadPreviewStyles.apply(
+                    textStyledMarkup,
+                    _options,
+                    helpers
                 )
             },
             overlayRenderer(board, _options, _context, helpers) {
