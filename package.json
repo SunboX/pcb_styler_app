@@ -1,6 +1,6 @@
 {
     "name": "pcb-styler",
-    "version": "1.0.91",
+    "version": "1.0.92",
     "description": "Browser-based PCB styler with KiCad and Altium board support",
     "license": "AGPL-3.0-or-later",
     "private": true,
@@ -13,7 +13,7 @@
         "check:format": "prettier --check ."
     },
     "dependencies": {
-        "altium-toolkit": "file:../../Andrés_Werkstatt/altium-toolkit",
+        "altium-toolkit": "npm:@sunbox/altium-toolkit@^0.1.16",
         "express": "^5.1.0",
         "fflate": "^0.8.2",
         "kicad-toolkit": "0.1.1"

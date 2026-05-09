@@ -254,12 +254,13 @@ function addSvgClass(markup, className, helpers) {
 /**
  * Adds app layer metadata when a toolkit release omits it from SVG tags.
  * @param {string} markup
- * @param {{ drawings?: object[] } | null} board
+ * @param {{ drawings?: object[], pads?: object[] } | null} board
  * @param {typeof PcbSvgRendererDecorator} helpers
  * @returns {string}
  */
 function annotateToolkitLayerMetadata(markup, board, helpers) {
     const drawingQueues = drawingLayerQueues(board?.drawings || [])
+    const padLayers = padLayerQueue(board?.pads || [])
     return markup
         .replace(
             /<(?:line|path)\b[^>]*\bclass="[^"]*\bpcb-segment\b[^"]*"[^>]*>/gu,
@@ -272,6 +273,10 @@ function annotateToolkitLayerMetadata(markup, board, helpers) {
         .replace(
             /<circle\b[^>]*\bclass="[^"]*\bpcb-via\b[^"]*"[^>]*>/gu,
             (tag) => annotateLayerFromQueue(tag, drawingQueues.via, helpers)
+        )
+        .replace(
+            /<(?:circle|rect|path)\b[^>]*\bclass="[^"]*\bpcb-pad\b[^"]*"[^>]*>/gu,
+            (tag) => annotatePadLayersFromQueue(tag, padLayers, helpers)
         )
 }
 
@@ -301,6 +306,20 @@ function drawingLayers(drawings, types) {
 }
 
 /**
+ * Selects pad layer names in render order.
+ * @param {object[]} pads
+ * @returns {string[]}
+ */
+function padLayerQueue(pads) {
+    return (pads || []).map((pad) => {
+        return (pad?.layers || [])
+            .map((layer) => String(layer || '').trim())
+            .filter(Boolean)
+            .join(' ')
+    })
+}
+
+/**
  * Adds one data-layer attribute from a queue when missing.
  * @param {string} tag
  * @param {string[]} layers
@@ -311,6 +330,20 @@ function annotateLayerFromQueue(tag, layers, helpers) {
     const layer = layers.shift()
     if (!layer || helpers.getAttribute(tag, 'data-layer')) return tag
     return helpers.setAttribute(tag, 'data-layer', layer)
+}
+
+/**
+ * Adds one data-pad-layers attribute from a queue when missing.
+ * @param {string} tag
+ * @param {string[]} layers
+ * @param {typeof PcbSvgRendererDecorator} helpers
+ * @returns {string}
+ */
+function annotatePadLayersFromQueue(tag, layers, helpers) {
+    if (!helpers.hasClass(tag, 'pcb-pad')) return tag
+    const padLayers = layers.shift()
+    if (!padLayers || helpers.getAttribute(tag, 'data-pad-layers')) return tag
+    return helpers.setAttribute(tag, 'data-pad-layers', padLayers)
 }
 
 /**

@@ -60,8 +60,13 @@ test('ftp workflow deploys package.json to the live root on dependency changes',
 test('ftp workflow deploys the static frontend build artifact', async () => {
     const workflow = await readFile(workflowPath, 'utf8')
 
+    assert.match(workflow, /name: Install frontend dependencies/)
+    assert.match(workflow, /run: npm ci/)
     assert.match(workflow, /name: Build static frontend deployment/)
-    assert.match(workflow, /run: npm run build:static/)
+    assert.match(
+        workflow,
+        /name: Install frontend dependencies[\s\S]*?run: npm ci[\s\S]*?name: Build static frontend deployment[\s\S]*?run: npm run build:static/
+    )
     assert.match(
         workflow,
         /name: Deploy static frontend to \.\/[\s\S]*?local-dir: \.\/\.deploy-src\/[\s\S]*?server-dir: \.\//

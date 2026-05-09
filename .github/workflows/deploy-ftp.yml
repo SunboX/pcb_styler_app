@@ -36,6 +36,10 @@ jobs:
                   node-version: 20
                   cache: npm
 
+            - name: Install frontend dependencies
+              if: steps.changes.outputs.src == 'true' || steps.changes.outputs.deps == 'true'
+              run: npm ci
+
             - name: Build static frontend deployment
               if: steps.changes.outputs.src == 'true' || steps.changes.outputs.deps == 'true'
               run: npm run build:static
