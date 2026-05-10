@@ -26,7 +26,7 @@ test('AltiumPcbSvgRenderer applies the KiCad preview render preset', () => {
 
     assert.doesNotMatch(manual, /pcb-svg--kicad-preview/u)
     assert.match(kicad, /pcb-svg--kicad-preview/u)
-    assert.match(kicad, /class="pcb-render-background"/u)
+    assert.doesNotMatch(kicad, /class="pcb-render-background"/u)
     assert.match(kicad, /class="board-outline"[^>]*fill="#df8060"/u)
     assert.match(kicad, /class="[^"]*pcb-track[^"]*"[^>]*stroke="#fff0a2"/u)
     assert.match(kicad, /class="[^"]*pcb-fill[^"]*"[^>]*fill="#df8060"/u)

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 const kicadPreviewColors = Object.freeze({
-    background: '#061326',
     boardFill: '#df8060',
     edge: '#c7d0d6',
     frontCopper: '#fff0a2',
@@ -30,12 +29,9 @@ export class AltiumKicadPreviewStyles {
         if (options.renderPreset !== 'kicad') return markup
 
         return AltiumKicadPreviewStyles.#applyElementStyles(
-            AltiumKicadPreviewStyles.#addBackground(
-                AltiumKicadPreviewStyles.#addSvgClass(
-                    markup,
-                    'pcb-svg--kicad-preview',
-                    helpers
-                ),
+            AltiumKicadPreviewStyles.#addSvgClass(
+                markup,
+                'pcb-svg--kicad-preview',
                 helpers
             ),
             helpers
@@ -58,39 +54,6 @@ export class AltiumKicadPreviewStyles {
             if (!classes.includes(className)) classes.push(className)
             return helpers.setAttribute(tag, 'class', classes.join(' '))
         })
-    }
-
-    /**
-     * Adds the KiCad preview background inside the SVG viewBox.
-     * @param {string} markup
-     * @param {typeof import('./PcbSvgRendererDecorator.mjs').PcbSvgRendererDecorator} helpers
-     * @returns {string}
-     */
-    static #addBackground(markup, helpers) {
-        if (markup.includes('class="pcb-render-background"')) return markup
-
-        const svgTag = markup.match(/<svg\b[^>]*>/u)?.[0] || ''
-        const viewBox = helpers
-            .getAttribute(svgTag, 'viewBox')
-            .split(/\s+/u)
-            .map(Number)
-        if (
-            viewBox.length !== 4 ||
-            viewBox.some((value) => !Number.isFinite(value))
-        ) {
-            return markup
-        }
-
-        const [x, y, width, height] = viewBox
-        const background = [
-            '<rect class="pcb-render-background"',
-            `x="${helpers.formatNumber(x)}"`,
-            `y="${helpers.formatNumber(y)}"`,
-            `width="${helpers.formatNumber(width)}"`,
-            `height="${helpers.formatNumber(height)}"`,
-            `fill="${kicadPreviewColors.background}"/>`
-        ].join(' ')
-        return markup.replace(svgTag, svgTag + background)
     }
 
     /**

@@ -25,8 +25,8 @@ Live app: [https://pcb-styler.app/](https://pcb-styler.app/).
 - Manual-style SVG PCB rendering with black board fill, grey pads, grey
   silkscreen, and a clean assembly-focused default that hides routed copper,
   zones, vias, and via drill holes until those layers are enabled
-- KiCad preview render preset with KiCad-like dark canvas, copper, pad, via,
-  drill, and silkscreen colors for full-detail KiCad board inspection
+- KiCad preview render preset with KiCad-like copper, pad, via, drill, and
+  silkscreen colors for full-detail KiCad board inspection
 - Altium PCB SVG rendering from direct `.PcbDoc` files or ZIP-contained
   `.PcbDoc` files
 - Front/back side switching with KiCad-style backside mirroring for KiCad boards

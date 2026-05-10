@@ -91,7 +91,7 @@ test('KicadPcbSvgRenderer applies KiCad preview styling from layer metadata', ()
     })
 
     assert.match(svg, /class="pcb-svg pcb-svg--kicad-preview"/)
-    assert.match(svg, /class="pcb-render-background"[^>]+fill="#061326"/)
+    assert.doesNotMatch(svg, /class="pcb-render-background"/)
     assert.match(svg, /class="pcb-board"[^>]+fill="#df8060"/)
     assert.match(
         svg,

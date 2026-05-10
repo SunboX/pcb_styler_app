@@ -7,7 +7,6 @@ import { PcbSvgRendererDecorator } from './PcbSvgRendererDecorator.mjs'
 
 const emptyDropPrompt = 'Drop board file or ZIP file here.'
 const kicadPreviewColors = Object.freeze({
-    background: '#061326',
     boardFill: '#df8060',
     edge: '#c7d0d6',
     frontCopper: '#fff0a2',
@@ -225,10 +224,7 @@ function applyRenderPreset(markup, options, helpers) {
     if (options.renderPreset !== 'kicad') return markup
 
     return applyKicadPreviewStyles(
-        addKicadPreviewBackground(
-            addSvgClass(markup, 'pcb-svg--kicad-preview', helpers),
-            helpers
-        ),
+        addSvgClass(markup, 'pcb-svg--kicad-preview', helpers),
         helpers
     )
 }
@@ -344,40 +340,6 @@ function annotatePadLayersFromQueue(tag, layers, helpers) {
     const padLayers = layers.shift()
     if (!padLayers || helpers.getAttribute(tag, 'data-pad-layers')) return tag
     return helpers.setAttribute(tag, 'data-pad-layers', padLayers)
-}
-
-/**
- * Inserts a dark background rectangle inside the rendered SVG viewBox.
- * @param {string} markup
- * @param {typeof PcbSvgRendererDecorator} helpers
- * @returns {string}
- */
-function addKicadPreviewBackground(markup, helpers) {
-    if (markup.includes('class="pcb-render-background"')) return markup
-
-    const svgTag = markup.match(/^<svg\b[^>]*>/u)?.[0] || ''
-    const viewBox = helpers
-        .getAttribute(svgTag, 'viewBox')
-        .split(/\s+/u)
-        .map(Number)
-    if (
-        viewBox.length !== 4 ||
-        viewBox.some((value) => !Number.isFinite(value))
-    ) {
-        return markup
-    }
-
-    const [x, y, width, height] = viewBox
-    const background = [
-        '<rect class="pcb-render-background"',
-        `x="${helpers.formatNumber(x)}"`,
-        `y="${helpers.formatNumber(y)}"`,
-        `width="${helpers.formatNumber(width)}"`,
-        `height="${helpers.formatNumber(height)}"`,
-        `fill="${kicadPreviewColors.background}"/>`
-    ].join(' ')
-
-    return markup.replace(svgTag, svgTag + background)
 }
 
 /**
