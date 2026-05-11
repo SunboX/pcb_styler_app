@@ -31,7 +31,7 @@ model.
 14. The UI provides PNG export with a transparent background outside the rendered PCB.
 15. The UI provides portable Project ZIP export containing the active KiCad `.kicad_pcb` source or Altium `.PcbDoc` source and a JSON settings file, and loading that ZIP restores the board plus saved UI settings, including render preset.
 16. The UI shows active file name, footprint count, pad count, outline presence, and status, with file metadata placed below the layer controls in the left sidebar.
-17. The UI provides an integrated imprint footer with responsible-party address, contact email, app version, GitHub, and Mastodon links.
+17. The UI provides an integrated imprint footer with responsible-party address, contact email, centered Germany hosting slogan, app version, GitHub, and Mastodon links.
 18. In browsers that support the early WebMCP API, the app registers structured tools for reading PCB Styler state, changing side, render preset, and layer styles, managing highlights and badges, and retrieving the current SVG or transparent PNG without requiring DOM actuation.
 19. Shared-hosting deployment publishes an Apache-ready static frontend artifact with versioned browser module URLs, no-store cache headers, and a PHP metadata fallback.
 
@@ -84,7 +84,7 @@ model.
 9. Highlights, badge controls, and export buttons are grouped in the right sidebar, while file loading, board metadata, side switching, and layer styling stay in the left sidebar.
 10. Clicking a KiCad or Altium component toggles its persistent highlight, hovering a component previews a softer highlight and shows component details in the right sidebar, the highlight color control changes selected component rendering, and clearing highlights removes all persistent highlights.
 11. Adding badges starts with label `1`, subsequent badges count upward, badge text is editable, badges can be rotated and dragged in the PCB view, longer badge text renders as a rounded pill, badge text/border color, scale, and drop shadow can be changed, and exported SVG/PNG include the configured badge appearance for KiCad and Altium boards.
-12. The footer shows the imprint contact information and runtime version as part of the app chrome, and the top bar does not show a separate version badge.
+12. The footer shows the imprint contact information, centered Germany hosting slogan, and runtime version as part of the app chrome, and the top bar does not show a separate version badge.
 13. When `navigator.modelContext.registerTool` is present, the app registers early WebMCP tools; when it is absent, startup continues without errors.
 14. `npm run build:static` writes `.deploy-src/` with versioned frontend assets for the FTP workflow.
 15. `npm test` passes.

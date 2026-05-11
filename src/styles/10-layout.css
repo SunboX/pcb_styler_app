@@ -142,6 +142,16 @@ h1 {
     font-weight: 600;
 }
 
+.footer-slogan {
+    grid-column: 1 / -1;
+    justify-self: center;
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+}
+
 .footer-actions {
     display: flex;
     justify-content: flex-end;

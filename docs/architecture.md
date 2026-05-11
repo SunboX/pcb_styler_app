@@ -12,7 +12,7 @@ the same local browser pipeline.
 
 ## Runtime Modules
 
-- `src/index.html`: static app shell with left setup sidebar, center viewer, right annotation/export sidebar, imprint footer, import map, and DOM anchors.
+- `src/index.html`: static app shell with left setup sidebar, center viewer, right annotation/export sidebar, imprint footer with centered hosting slogan, import map, and DOM anchors.
 - `src/main.mjs`: bootstrap and dependency wiring.
 - `src/AppController.mjs`: file loading, state updates, side switching, hovered component lookup, and export actions.
 - `src/core/BoardFileLoader.mjs`: format-aware board loading for direct files and ZIP-contained boards.
