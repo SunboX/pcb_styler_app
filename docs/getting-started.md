@@ -39,6 +39,17 @@ Open [http://localhost:3001/](http://localhost:3001/).
 11. In a WebMCP-enabled browser, an agent can use the registered PCB Styler tools to inspect state, switch sides, change render presets, update layer styles, manage highlights and badges, and retrieve SVG or transparent PNG output.
 12. Use the integrated imprint footer for responsible-party, contact, version, GitHub, and Mastodon information.
 
+## Analytics
+
+- The app loads the centralized cookieless tracker from `https://analytics.andrefiedler.de/tracker.js`.
+- The public site key is `pcb_styler_app`.
+- Register each deployed browser origin in the Analytics `analytics_sites` table or dashboard before expecting events. The production row should use the deployed app origin and public key `pcb_styler_app`.
+
+```sql
+INSERT INTO analytics_sites (name, allowed_origin, public_key, active, created_at)
+VALUES ('PCB Styler', 'https://your-pcb-app-origin.example', 'pcb_styler_app', 1, UTC_TIMESTAMP());
+```
+
 ## Test
 
 ```bash
