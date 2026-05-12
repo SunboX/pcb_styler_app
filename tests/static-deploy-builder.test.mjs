@@ -78,6 +78,14 @@ test('static deploy builder writes versioned Apache assets', async (t) => {
         path.join(outputRoot, '.htaccess'),
         'utf8'
     )
+    const robotsSource = await readFile(
+        path.join(outputRoot, 'robots.txt'),
+        'utf8'
+    )
+    const sitemapSource = await readFile(
+        path.join(outputRoot, 'sitemap.xml'),
+        'utf8'
+    )
 
     assert.match(indexHtml, new RegExp('/style\\.css\\?v=' + pkg.version))
     assert.match(indexHtml, new RegExp('/main\\.mjs\\?v=' + pkg.version))
@@ -193,7 +201,7 @@ test('static deploy builder writes versioned Apache assets', async (t) => {
     )
     assert.match(
         kicadParserSource,
-        new RegExp('\\./core/Geometry\\.mjs\\?v=' + pkg.version)
+        new RegExp('\\./core/kicad/Geometry\\.mjs\\?v=' + pkg.version)
     )
     assert.match(fflateBrowserSource, /function/)
     assert.match(
@@ -210,4 +218,10 @@ test('static deploy builder writes versioned Apache assets', async (t) => {
     )
     assert.match(htaccessSource, /Cache-Control/)
     assert.match(htaccessSource, /no-store/)
+    assert.match(robotsSource, /^Allow: \/$/m)
+    assert.match(
+        robotsSource,
+        /^Sitemap: https:\/\/pcb-styler\.app\/sitemap\.xml$/m
+    )
+    assert.match(sitemapSource, /<loc>https:\/\/pcb-styler\.app\/<\/loc>/)
 })

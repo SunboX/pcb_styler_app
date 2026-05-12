@@ -44,11 +44,14 @@ test('required project files exist', async () => {
         'docs/testing.md',
         'docs/security.md',
         'docs/troubleshooting.md',
+        'docs/search-indexing.md',
         '.github/workflows/deploy-ftp.yml',
         'api/.htaccess',
         'api/app-meta.php',
         'scripts/build-static-deploy.mjs',
         'src/index.html',
+        'src/robots.txt',
+        'src/sitemap.xml',
         'src/main.mjs',
         'src/style.css',
         'src/server.mjs',
@@ -256,6 +259,42 @@ test('project uses the PCB Styler name', async () => {
     assert.doesNotMatch(indexSource, /PCB Marker/)
     assert.doesNotMatch(readme, /PCB Marker/)
     assert.doesNotMatch(spec, /PCB Marker/)
+})
+
+/**
+ * Verifies the deployed browser shell exposes crawl-safe SEO metadata.
+ */
+test('browser shell declares indexable canonical metadata', async () => {
+    const source = await readFile(new URL('src/index.html', root), 'utf8')
+
+    assert.match(
+        source,
+        /<title>PCB Styler - KiCad and Altium PCB Assembly Views<\/title>/
+    )
+    assert.match(source, /<meta\s+name="description"\s+content="[^"]+"/)
+    assert.match(
+        source,
+        /<meta\s+name="robots"\s+content="index, follow"\s*\/>/
+    )
+    assert.match(
+        source,
+        /<link\s+rel="canonical"\s+href="https:\/\/pcb-styler\.app\/"\s*\/>/
+    )
+    assert.doesNotMatch(source, /noindex/i)
+})
+
+/**
+ * Verifies crawler control files allow the public app and list the sitemap.
+ */
+test('crawler control files allow app indexing', async () => {
+    const robots = await readFile(new URL('src/robots.txt', root), 'utf8')
+    const sitemap = await readFile(new URL('src/sitemap.xml', root), 'utf8')
+
+    assert.match(robots, /^User-agent: \*/m)
+    assert.match(robots, /^Allow: \/$/m)
+    assert.match(robots, /^Sitemap: https:\/\/pcb-styler\.app\/sitemap\.xml$/m)
+    assert.doesNotMatch(robots, /Disallow:\s*\//)
+    assert.match(sitemap, /<loc>https:\/\/pcb-styler\.app\/<\/loc>/)
 })
 
 /**

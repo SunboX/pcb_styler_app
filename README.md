@@ -69,6 +69,7 @@ Live app: [https://pcb-styler.app/](https://pcb-styler.app/).
 - [WebMCP Integration](docs/webmcp.md)
 - [Security](docs/security.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Search Indexing](docs/search-indexing.md)
 - [Specification](spec/web-app-specification.md)
 
 ## Start

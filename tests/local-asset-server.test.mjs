@@ -32,8 +32,29 @@ test('local asset server serves versioned browser module graph', async (t) => {
     const indexHtml = await indexResponse.text()
 
     assert.match(indexResponse.headers.get('cache-control') || '', /no-store/)
+    assert.equal(indexResponse.status, 200)
     assert.match(indexHtml, new RegExp('/style\\.css\\?v=' + pkg.version))
     assert.match(indexHtml, new RegExp('/main\\.mjs\\?v=' + pkg.version))
+
+    const indexHtmlResponse = await fetch(baseUrl + '/index.html')
+
+    assert.equal(indexHtmlResponse.status, 200)
+
+    const robotsResponse = await fetch(baseUrl + '/robots.txt')
+    const robotsSource = await robotsResponse.text()
+
+    assert.equal(robotsResponse.status, 200)
+    assert.match(robotsSource, /^Allow: \/$/m)
+    assert.match(
+        robotsSource,
+        /^Sitemap: https:\/\/pcb-styler\.app\/sitemap\.xml$/m
+    )
+
+    const sitemapResponse = await fetch(baseUrl + '/sitemap.xml')
+    const sitemapSource = await sitemapResponse.text()
+
+    assert.equal(sitemapResponse.status, 200)
+    assert.match(sitemapSource, /<loc>https:\/\/pcb-styler\.app\/<\/loc>/)
 
     const mainResponse = await fetch(baseUrl + '/main.mjs?v=' + pkg.version)
     const mainSource = await mainResponse.text()
@@ -84,6 +105,6 @@ test('local asset server serves versioned browser module graph', async (t) => {
     )
     assert.match(
         kicadParserSource,
-        new RegExp('\\./core/Geometry\\.mjs\\?v=' + pkg.version)
+        new RegExp('\\./core/kicad/Geometry\\.mjs\\?v=' + pkg.version)
     )
 })
