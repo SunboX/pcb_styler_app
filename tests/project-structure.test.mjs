@@ -117,11 +117,12 @@ test('project declares AGPL and commercial licensing notices', async () => {
 })
 
 /**
- * Verifies core npm scripts are present.
+ * Verifies npm package metadata and dependency names.
  */
-test('package scripts include start and test', async () => {
+test('package metadata uses unscoped toolkit dependencies', async () => {
     const raw = await readFile(new URL('package.json', root), 'utf8')
     const pkg = JSON.parse(raw)
+    const rawLock = await readFile(new URL('package-lock.json', root), 'utf8')
 
     assert.equal(typeof pkg.scripts?.start, 'string')
     assert.equal(
@@ -137,6 +138,7 @@ test('package scripts include start and test', async () => {
         false
     )
     assert.equal(typeof pkg.dependencies?.['altium-toolkit'], 'string')
+    assert.doesNotMatch(rawLock, /@sunbox\//)
 })
 
 /**
